@@ -1,0 +1,73 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Cortex-Debug (OpenOCD + RTT)",
+      "type": "cortex-debug",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "executable": "${workspaceFolder}/build/Debug/PSP.elf",
+      "servertype": "openocd",
+      "serverpath": "/home/dev/.local/opt/xpack-openocd-0.12.0-7/bin/openocd",
+      "armToolchainPath": "/opt/st/stm32cubeclt_1.21.0/GNU-tools-for-STM32/bin",
+      "gdbPath": "/opt/st/stm32cubeclt_1.21.0/GNU-tools-for-STM32/bin/arm-none-eabi-gdb",
+      "searchDir": [
+        "/home/dev/.local/opt/xpack-openocd-0.12.0-7/openocd/scripts"
+      ],
+      "configFiles": [
+        "interface/stlink.cfg",
+        "target/stm32f1x.cfg"
+      ],
+      "device": "STM32F103RC",
+      "svdFile": "/opt/st/stm32cubeclt_1.21.0/STMicroelectronics_CMSIS_SVD/STM32F103.svd",
+      "runToEntryPoint": "main",
+      "preLaunchTask": "CMake: build",
+      "postStartSessionCommands": [
+        "monitor rtt setup 0x20000524 1152 \"SEGGER RTT\"",
+        "monitor rtt start"
+      ],
+      "rttConfig": {
+        "enabled": true,
+        "address": "auto",
+        "decoders": [
+          {
+            "port": 0,
+            "type": "console",
+            "label": "RTT"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Cortex-Debug (Attach, no flash)",
+      "type": "cortex-debug",
+      "request": "attach",
+      "cwd": "${workspaceFolder}",
+      "executable": "${workspaceFolder}/build/Debug/PSP.elf",
+      "servertype": "openocd",
+      "serverpath": "/home/dev/.local/opt/xpack-openocd-0.12.0-7/bin/openocd",
+      "armToolchainPath": "/opt/st/stm32cubeclt_1.21.0/GNU-tools-for-STM32/bin",
+      "gdbPath": "/opt/st/stm32cubeclt_1.21.0/GNU-tools-for-STM32/bin/arm-none-eabi-gdb",
+      "searchDir": [
+        "/home/dev/.local/opt/xpack-openocd-0.12.0-7/openocd/scripts"
+      ],
+      "configFiles": [
+        "interface/stlink.cfg",
+        "target/stm32f1x.cfg"
+      ],
+      "device": "STM32F103RC",
+      "svdFile": "/opt/st/stm32cubeclt_1.21.0/STMicroelectronics_CMSIS_SVD/STM32F103.svd",
+      "rttConfig": {
+        "enabled": true,
+        "address": "auto",
+        "decoders": [
+          {
+            "port": 0,
+            "type": "console",
+            "label": "RTT"
+          }
+        ]
+      }
+    }
+  ]
+}

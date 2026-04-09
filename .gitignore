@@ -1,0 +1,62 @@
+# ------------------------------------------------------------
+# STM32 CMake project — .gitignore
+# ------------------------------------------------------------
+
+# Build output (CMake + Ninja)
+/build/
+/out/
+/cmake-build-*/
+
+# Compiled artifacts
+*.o
+*.obj
+*.a
+*.elf
+*.bin
+*.hex
+*.map
+*.list
+*.su
+*.d
+
+# Debug / analysis files
+*.gdb_history
+*.ozone.*
+
+# CubeMX scratch / temp
+/MXTmpFiles/
+mx.scratch
+*.ioc.bak
+*_save
+*.*_save
+
+# VS Code — keep shared configs, ignore user-local caches
+.vscode/ipch/
+.vscode/.browse.*
+.vscode/*.db
+.vscode/.ropeproject/
+
+# JetBrains / CLion
+.idea/
+cmake-build-*/
+
+# STM32CubeIDE (in case it's accidentally used in parallel)
+/.settings/
+.cproject
+.project
+.mxproject
+
+# macOS / Linux / Windows junk
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+
+# clangd / compile_commands.json — generated artifacts
+.cache/
+compile_commands.json
+
+# Local env overrides
+.env
+.env.local
