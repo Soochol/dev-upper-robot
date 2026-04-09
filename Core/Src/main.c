@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "cmsis_os.h"
 #include "adc.h"
 #include "dma.h"
 #include "fatfs.h"
@@ -32,6 +33,9 @@
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
 #include "SEGGER_RTT.h"
+#include "FreeRTOS.h"
+#include "task.h"
+#include "semphr.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -59,12 +63,17 @@
  *   [2] ADC_TEMP_AIR (PA2)  air / enclosure temperature
  *   [3] ADC_CURRENT  (PA3)  motor / heater current
  * Word alignment matches DMA_MDATAALIGN_WORD from .ioc.
+ *
+ * Externally visible (no `static`) so sensor_task in freertos.c can read
+ * the latest values via an extern declaration. Still volatile because the
+ * DMA controller writes it asynchronously to CPU loads.
  */
-static volatile uint32_t adc_buf[4];
+volatile uint32_t adc_buf[4];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
+void MX_FREERTOS_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -159,23 +168,28 @@ int main(void)
   }
   /* USER CODE END 2 */
 
+  /* Call init function for freertos objects (in cmsis_os2.c) */
+  MX_FREERTOS_Init();
+
+  /* Start scheduler */
+  osKernelStart();
+
+  /* We should never get here as control is now taken by the scheduler */
+
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  uint32_t next_log_ms = 0;
+  /* osKernelStart() above never returns under normal operation. If we
+   * reach this loop the scheduler failed to launch (heap exhaustion in
+   * MX_FREERTOS_Init, MPU misconfig, etc.) — fail loud rather than
+   * silently fall back to a super-loop that no longer matches the rest
+   * of the firmware. */
+  printf("FATAL: scheduler exited\r\n");
+  Error_Handler();
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    /* Non-blocking 1 Hz heartbeat log. Using HAL_GetTick() instead of
-     * HAL_Delay() so the loop stays free for future cooperative tasks. */
-    uint32_t now = HAL_GetTick();
-    if ((int32_t)(now - next_log_ms) >= 0)
-    {
-      next_log_ms = now + 1000u;
-      printf("ADC batt=%4lu temp_bd=%4lu temp_air=%4lu curr=%4lu\r\n",
-             adc_buf[0], adc_buf[1], adc_buf[2], adc_buf[3]);
-    }
   }
   /* USER CODE END 3 */
 }
@@ -272,13 +286,57 @@ static void rtt_pre_main_init(void)
  * UART transmit is acceptable because printf() is only used from the main
  * loop; do NOT call printf() from an ISR (deadlock risk).
  */
+/* mtx_printf is created in MX_FREERTOS_Init() before any application task
+ * can run, but boot-time printf() (lines 148–150 above) happens BEFORE the
+ * scheduler starts and before that mutex exists. The NULL guard below lets
+ * those early prints fall through to direct UART, which is single-threaded
+ * by definition at that point. */
+extern SemaphoreHandle_t mtx_printf;
+
 int __io_putchar(int ch)
 {
+  /* Once the scheduler is running, serialize concurrent printf() calls
+   * across tasks so the dual transport (RTT + UART) does not interleave
+   * bytes. xTaskGetSchedulerState avoids touching the mutex from ISRs. */
+  BaseType_t locked = pdFALSE;
+  if (mtx_printf != NULL && xTaskGetSchedulerState() == taskSCHEDULER_RUNNING)
+  {
+    /* Bounded wait — never block the producer indefinitely on a stuck UART. */
+    locked = xSemaphoreTake(mtx_printf, pdMS_TO_TICKS(10));
+  }
+
   SEGGER_RTT_Write(0, &ch, 1);
   HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
+
+  if (locked == pdTRUE)
+  {
+    xSemaphoreGive(mtx_printf);
+  }
   return ch;
 }
 /* USER CODE END 4 */
+
+/**
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM4 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim : TIM handle
+  * @retval None
+  */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  /* USER CODE BEGIN Callback 0 */
+
+  /* USER CODE END Callback 0 */
+  if (htim->Instance == TIM4)
+  {
+    HAL_IncTick();
+  }
+  /* USER CODE BEGIN Callback 1 */
+
+  /* USER CODE END Callback 1 */
+}
 
 /**
   * @brief  This function is executed in case of error occurrence.
