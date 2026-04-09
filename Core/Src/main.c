@@ -33,9 +33,6 @@
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
 #include "SEGGER_RTT.h"
-#include "FreeRTOS.h"
-#include "task.h"
-#include "semphr.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -286,32 +283,10 @@ static void rtt_pre_main_init(void)
  * UART transmit is acceptable because printf() is only used from the main
  * loop; do NOT call printf() from an ISR (deadlock risk).
  */
-/* mtx_printf is created in MX_FREERTOS_Init() before any application task
- * can run, but boot-time printf() (lines 148–150 above) happens BEFORE the
- * scheduler starts and before that mutex exists. The NULL guard below lets
- * those early prints fall through to direct UART, which is single-threaded
- * by definition at that point. */
-extern SemaphoreHandle_t mtx_printf;
-
 int __io_putchar(int ch)
 {
-  /* Once the scheduler is running, serialize concurrent printf() calls
-   * across tasks so the dual transport (RTT + UART) does not interleave
-   * bytes. xTaskGetSchedulerState avoids touching the mutex from ISRs. */
-  BaseType_t locked = pdFALSE;
-  if (mtx_printf != NULL && xTaskGetSchedulerState() == taskSCHEDULER_RUNNING)
-  {
-    /* Bounded wait — never block the producer indefinitely on a stuck UART. */
-    locked = xSemaphoreTake(mtx_printf, pdMS_TO_TICKS(10));
-  }
-
   SEGGER_RTT_Write(0, &ch, 1);
   HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
-
-  if (locked == pdTRUE)
-  {
-    xSemaphoreGive(mtx_printf);
-  }
   return ch;
 }
 /* USER CODE END 4 */

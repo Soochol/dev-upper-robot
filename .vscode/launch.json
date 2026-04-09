@@ -23,7 +23,7 @@
       "runToEntryPoint": "main",
       "preLaunchTask": "CMake: build",
       "postStartSessionCommands": [
-        "monitor rtt setup 0x20000524 1152 \"SEGGER RTT\"",
+        "monitor rtt setup 0x20003920 2048 \"SEGGER RTT\"",
         "monitor rtt start"
       ],
       "rttConfig": {

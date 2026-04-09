@@ -137,12 +137,6 @@ standard names. */
 /* USER CODE BEGIN Defines */
 /* Section where parameter definitions can be added (for instance, to override default ones in FreeRTOS.h) */
 
-/* Override CubeMX default: thermal_ctrl_task uses vTaskDelayUntil() for
- * jitter-free 50ms control loop. CubeMX leaves this disabled by default
- * but the symbol is needed by our application code in freertos.c. */
-#undef  INCLUDE_vTaskDelayUntil
-#define INCLUDE_vTaskDelayUntil    1
-
 /* USER CODE END Defines */
 
 #endif /* FREERTOS_CONFIG_H */
