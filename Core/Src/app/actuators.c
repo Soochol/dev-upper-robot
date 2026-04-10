@@ -84,16 +84,16 @@ void actuators_set_led_pattern(led_pattern_t pat)
         break;
     case LED_FADE_YELLOW:
         r1 = GPIO_PIN_SET;
-        rgb = (sk6812_color_t){64, 32, 0};    /* dim amber */
+        rgb = (sk6812_color_t){255, 180, 0};   /* warm yellow, full brightness */
         break;
     case LED_RAMP_YELLOW:
         r2 = GPIO_PIN_SET;
-        rgb = (sk6812_color_t){255, 128, 0};   /* bright orange */
+        rgb = (sk6812_color_t){255, 255, 0};   /* bright yellow */
         break;
     case LED_FLASH_RED:
         r1 = GPIO_PIN_SET;
         r2 = GPIO_PIN_SET;
-        rgb = (sk6812_color_t){255, 0, 0};     /* solid red */
+        rgb = (sk6812_color_t){255, 0, 0};     /* full red */
         break;
     default:
         break;
