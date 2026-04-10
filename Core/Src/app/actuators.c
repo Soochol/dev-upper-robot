@@ -66,8 +66,8 @@ void actuators_set_fan_duty_pct(uint8_t pct)
 {
     if (pct > 100) pct = 100;
     /* PWM 극성 반전: CCR=0 → 풀스피드, CCR=1000 → 최저속.
-     * 변환: CCR = PERIOD - (pct * 10). pct=100 → CCR=0, pct=0 → CCR=1000. */
-    uint16_t ccr = ACTUATORS_PWM_PERIOD - (uint16_t)pct * 10u;
+     * pct=0 → CCR=0 + PA10 LOW: PA9도 LOW로 내려 전류 경로 차단. */
+    uint16_t ccr = (pct > 0) ? (ACTUATORS_PWM_PERIOD - (uint16_t)pct * 10u) : 0;
     __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, ccr);
     /* PA10 = 팬 전원 enable. pct > 0이면 HIGH, 0이면 LOW. */
     HAL_GPIO_WritePin(OUT_FAN_PWR_GPIO_Port, OUT_FAN_PWR_Pin,

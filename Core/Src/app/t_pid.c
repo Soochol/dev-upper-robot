@@ -172,7 +172,7 @@ void t_pid_run(void *arg)
         if (led == LED_FADE_YELLOW) {
             heater_duty = 0;
             float err = measurement - (float)current_cmd.setpoint_c;
-            fan_pct = (ir_ok && err > (float)TEMP_DEADBAND_C) ? 100 : 0;
+            fan_pct = (ir_ok && err > (float)TEMP_DEADBAND_C) ? 50 : 0;
         }
 
         /* ---- 6b. FORCE_UP: apply deadband to heater ---- */
