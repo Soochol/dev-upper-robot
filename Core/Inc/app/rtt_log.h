@@ -32,6 +32,13 @@ void rtt_log_hb(const char *tag,
                 const char *kc, uint32_t vc,
                 const char *kd, uint32_t vd);
 
+/* Signed variant of rtt_log_hb. Negative values print with '-' prefix. */
+void rtt_log_hb_s(const char *tag,
+                  const char *ka, int32_t va,
+                  const char *kb, int32_t vb,
+                  const char *kc, int32_t vc,
+                  const char *kd, int32_t vd);
+
 /* Single key=value pair with the value in hexadecimal (uppercase, no
  * leading zeros, "0x" prefix added automatically). Useful for I2C
  * addresses, register dumps, and bitfields where decimal output makes

@@ -30,10 +30,12 @@
  * and extending actuators_set_led_pattern() in actuators.c. */
 
 typedef enum {
-    LED_OFF          = 0,
-    LED_FADE_YELLOW  = 1,   /* FORCE_DOWN: cooling, R1 on, R2 off */
-    LED_RAMP_YELLOW  = 2,   /* FORCE_UP:   heating, R1 off, R2 on */
-    LED_FLASH_RED    = 3,   /* FAULT:      alarm,   both on (Phase 6: blink) */
+    LED_OFF               = 0,
+    LED_FADE_YELLOW       = 1,   /* FORCE_DOWN: cooling, solid           */
+    LED_RAMP_YELLOW       = 2,   /* FORCE_UP:   heating, solid           */
+    LED_FLASH_RED         = 3,   /* FAULT:      alarm,   1 Hz blink      */
+    LED_FADE_YELLOW_BLINK = 4,   /* FORCE_DOWN: cooling in progress, blink */
+    LED_RAMP_YELLOW_BLINK = 5,   /* FORCE_UP:   heating in progress, blink */
 } led_pattern_t;
 
 /* ========================================================================

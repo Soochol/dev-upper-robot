@@ -44,6 +44,16 @@ static char *append_u32(char *dst, uint32_t v)
     return dst;
 }
 
+/* Append an int32_t in decimal form (with '-' prefix if negative). */
+static char *append_i32(char *dst, int32_t v)
+{
+    if (v < 0) {
+        *dst++ = '-';
+        v = -v;
+    }
+    return append_u32(dst, (uint32_t)v);
+}
+
 /* Append a uint32_t in uppercase hexadecimal with leading-zero
  * suppression. Always emits at least one digit ("0" for v == 0).
  * No "0x" prefix — the caller adds that if it wants. */
@@ -103,6 +113,26 @@ void rtt_log_hb(const char *tag,
     if (kb && p < end) { p = append_str(p, kb); p = append_u32(p, vb); }
     if (kc && p < end) { p = append_str(p, kc); p = append_u32(p, vc); }
     if (kd && p < end) { p = append_str(p, kd); p = append_u32(p, vd); }
+    *p++ = '\r';
+    *p++ = '\n';
+    SEGGER_RTT_Write(0, buf, (unsigned)(p - buf));
+}
+
+void rtt_log_hb_s(const char *tag,
+                  const char *ka, int32_t va,
+                  const char *kb, int32_t vb,
+                  const char *kc, int32_t vc,
+                  const char *kd, int32_t vd)
+{
+    char  buf[96];
+    char *p   = buf;
+    char *end = buf + sizeof(buf) - 4;
+
+    p = append_str(p, tag);
+    if (ka && p < end) { p = append_str(p, ka); p = append_i32(p, va); }
+    if (kb && p < end) { p = append_str(p, kb); p = append_i32(p, vb); }
+    if (kc && p < end) { p = append_str(p, kc); p = append_i32(p, vc); }
+    if (kd && p < end) { p = append_str(p, kd); p = append_i32(p, vd); }
     *p++ = '\r';
     *p++ = '\n';
     SEGGER_RTT_Write(0, buf, (unsigned)(p - buf));

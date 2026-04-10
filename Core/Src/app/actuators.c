@@ -15,9 +15,11 @@
  */
 
 #include <stdint.h>
+#include <stdbool.h>
 #include "main.h"
 #include "tim.h"
 #include "stm32f1xx_hal.h"
+#include "app/config.h"
 #include "app/actuators.h"
 #include "app/sk6812.h"
 
@@ -68,8 +70,28 @@ void actuators_set_fan_duty_pct(uint8_t pct)
     __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, ccr);
 }
 
+/* Blink: 1 Hz (500 ms on, 500 ms off).
+ * Called at 20 Hz (PERIOD_T_PID_MS = 50 ms), so 10 ticks per half-cycle. */
+#define BLINK_HALF_PERIOD  (500u / PERIOD_T_PID_MS)  /* 10 */
+
+static bool blink_is_on(uint16_t *tick)
+{
+    bool on = (*tick / BLINK_HALF_PERIOD) % 2 == 0;
+    if (++(*tick) >= BLINK_HALF_PERIOD * 2)
+        *tick = 0;
+    return on;
+}
+
 void actuators_set_led_pattern(led_pattern_t pat)
 {
+    static led_pattern_t prev_pat = LED_OFF;
+    static uint16_t blink_tick = 0;
+
+    if (pat != prev_pat) {
+        blink_tick = 0;
+        prev_pat = pat;
+    }
+
     /* GPIO indicator LEDs (PB0, PB1) — solid on/off. */
     GPIO_PinState r1 = GPIO_PIN_RESET;
     GPIO_PinState r2 = GPIO_PIN_RESET;
@@ -80,20 +102,33 @@ void actuators_set_led_pattern(led_pattern_t pat)
 
     switch (pat) {
     case LED_OFF:
-        /* all off */
         break;
     case LED_FADE_YELLOW:
         r1 = GPIO_PIN_SET;
         rgb = (sk6812_color_t){0, 80, 255};    /* blue */
         break;
+    case LED_FADE_YELLOW_BLINK:
+        if (blink_is_on(&blink_tick)) {
+            r1 = GPIO_PIN_SET;
+            rgb = (sk6812_color_t){0, 80, 255};
+        }
+        break;
     case LED_RAMP_YELLOW:
         r2 = GPIO_PIN_SET;
         rgb = (sk6812_color_t){255, 255, 0};   /* neon yellow, max brightness */
         break;
+    case LED_RAMP_YELLOW_BLINK:
+        if (blink_is_on(&blink_tick)) {
+            r2 = GPIO_PIN_SET;
+            rgb = (sk6812_color_t){255, 255, 0};
+        }
+        break;
     case LED_FLASH_RED:
-        r1 = GPIO_PIN_SET;
-        r2 = GPIO_PIN_SET;
-        rgb = (sk6812_color_t){255, 0, 0};     /* red */
+        if (blink_is_on(&blink_tick)) {
+            r1 = GPIO_PIN_SET;
+            r2 = GPIO_PIN_SET;
+            rgb = (sk6812_color_t){255, 0, 0};
+        }
         break;
     default:
         break;

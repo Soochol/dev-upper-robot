@@ -71,10 +71,10 @@ void t_logger_run(void *arg)
         prefix[5] = ']';
         prefix[6] = '\0';
 
-        rtt_log_hb(prefix,
-                   " t=",    msg.timestamp_ms,
-                   " c=",    (uint32_t)msg.code,
-                   " v=",    (uint32_t)msg.value,
-                   " x=",    (uint32_t)msg.extra);
+        rtt_log_hb_s(prefix,
+                     " t=",  (int32_t)msg.timestamp_ms,
+                     " c=",  (int32_t)msg.code,
+                     " v=",  msg.value,
+                     " x=",  msg.extra);
     }
 }

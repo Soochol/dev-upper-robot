@@ -45,13 +45,6 @@
  * sustained sensor failures trigger FAULT. */
 #define IR_READ_FAIL_LIMIT   40u
 
-/* Encode a Celsius value as signed centi-Celsius for the integer-only
- * RTT logger. 25.43 °C → 2543, -1.20 °C → -120. */
-static uint32_t celsius_to_centi_uint(float c)
-{
-    int32_t centi = (int32_t)(c * 100.0f + (c >= 0 ? 0.5f : -0.5f));
-    return (uint32_t)centi;
-}
 
 void t_pid_run(void *arg)
 {
@@ -91,6 +84,8 @@ void t_pid_run(void *arg)
 
     float    last_valid_meas = (float)TEMP_COOL_C;
     uint32_t ir_fail_count   = 0u;
+    bool     reached_target  = false;
+    uint8_t  prev_led_pat    = current_cmd.led_pattern;
 
     TickType_t next_wake = xTaskGetTickCount();
     uint32_t   tick = 0;
@@ -170,7 +165,40 @@ void t_pid_run(void *arg)
             heater_duty = 0;
             fan_pct = 0;
             led = LED_FLASH_RED;
-            pid_reset(&heater_pid);  /* clean restart if FAULT recovers (it doesn't, but be tidy) */
+            pid_reset(&heater_pid);
+        }
+
+        /* ---- 6a. FORCE_DOWN: fan 100% if above deadband, heater off ---- */
+        if (led == LED_FADE_YELLOW) {
+            heater_duty = 0;
+            float err = measurement - (float)current_cmd.setpoint_c;
+            fan_pct = (ir_ok && err > (float)TEMP_DEADBAND_C) ? 100 : 0;
+        }
+
+        /* ---- 6b. FORCE_UP: apply deadband to heater ---- */
+        if (led == LED_RAMP_YELLOW) {
+            float err = (float)current_cmd.setpoint_c - measurement;
+            if (err <= (float)TEMP_DEADBAND_C)
+                heater_duty = 0;
+        }
+
+        /* ---- 6c. LED blink while approaching target ---- */
+        if (current_cmd.led_pattern != prev_led_pat) {
+            reached_target = false;
+            prev_led_pat = current_cmd.led_pattern;
+            pid_reset(&heater_pid);
+        }
+        if (ir_ok && !reached_target) {
+            if (led == LED_RAMP_YELLOW &&
+                measurement >= (float)(current_cmd.setpoint_c - TEMP_DEADBAND_C))
+                reached_target = true;
+            if (led == LED_FADE_YELLOW &&
+                measurement <= (float)(current_cmd.setpoint_c + TEMP_DEADBAND_C))
+                reached_target = true;
+        }
+        if (!reached_target) {
+            if (led == LED_RAMP_YELLOW)  led = LED_RAMP_YELLOW_BLINK;
+            if (led == LED_FADE_YELLOW)  led = LED_FADE_YELLOW_BLINK;
         }
 
         /* ---- 7. Write actuators ---- */
@@ -180,11 +208,11 @@ void t_pid_run(void *arg)
 
         /* ---- 8. Heartbeat log (1 Hz) ---- */
         if ((tick % 20) == 0) {
-            rtt_log_hb("[t_pid]",
-                       " ir_cC=",  celsius_to_centi_uint(measurement),
-                       " sp_cC=",  (uint32_t)((int32_t)current_cmd.setpoint_c * 100),
-                       " heat=",   (uint32_t)heater_duty,
-                       " fan=",    (uint32_t)fan_pct);
+            rtt_log_hb_s("[t_pid]",
+                         " ir_cC=", (int32_t)(measurement * 100.0f),
+                         " sp_cC=", (int32_t)current_cmd.setpoint_c * 100,
+                         " heat=",  (int32_t)heater_duty,
+                         " fan=",   (int32_t)fan_pct);
 
             /* Structured log to q_log for T_LOGGER (Phase 5). Non-blocking;
              * drop silently if the queue is full — the direct RTT heartbeat
@@ -195,7 +223,7 @@ void t_pid_run(void *arg)
                 .level        = LOG_LVL_INFO,
                 .source       = LOG_SRC_PID,
                 .code         = 0,  /* 0 = periodic heartbeat */
-                .value        = (int32_t)celsius_to_centi_uint(measurement),
+                .value        = (int32_t)(measurement * 100.0f),
                 .extra        = (int32_t)heater_duty,
             };
             (void)xQueueSendToBack(q_log, &lm, 0);

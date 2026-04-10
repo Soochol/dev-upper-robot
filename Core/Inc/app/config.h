@@ -54,13 +54,14 @@
 
 /* Temperature setpoints (degrees Celsius) */
 #define TEMP_ACTIVE_C           60   /* FORCE_UP target */
-#define TEMP_COOL_C             32   /* FORCE_DOWN target */
+#define TEMP_COOL_C             15   /* FORCE_DOWN target */
 #define OVERTEMP_HARD_C        100   /* FAULT trigger threshold */
+#define TEMP_DEADBAND_C          2   /* ±2°C: within this range = target reached */
 
-/* Fan duty cycle (%) — FSM state lookup table. fan is NOT a PID output;
- * it is a hard-coded value per state. PID controls heater only. */
+/* Fan duty cycle (%) — state table default. FORCE_DOWN overrides this
+ * with proportional control in t_pid.c (10%/°C above setpoint). */
 #define FAN_DUTY_FORCE_UP       0
-#define FAN_DUTY_FORCE_DOWN   100
+#define FAN_DUTY_FORCE_DOWN     0
 #define FAN_DUTY_FAULT          0
 
 /* Safety net timeout (ms). FORCE_UP only — heater-on state must not be

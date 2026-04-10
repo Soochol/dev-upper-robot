@@ -129,28 +129,23 @@ void t_ml_run(void *arg)
 
         /* ---- 5. Heartbeat log (1 Hz) — 3 lines per second ---- */
         if ((tick % 20) == 0) {
-            /* Line 1: accel raw (uint16 cast, >32768 = negative) + fsr */
-            rtt_log_hb("[ml:a]",
-                       " x=", (uint32_t)(uint16_t)imu.accel_x,
-                       " y=", (uint32_t)(uint16_t)imu.accel_y,
-                       " z=", (uint32_t)(uint16_t)imu.accel_z,
-                       " fsr=", (uint32_t)(uint16_t)fsr_raw);
+            rtt_log_hb_s("[ml:a]",
+                         " x=", (int32_t)imu.accel_x,
+                         " y=", (int32_t)imu.accel_y,
+                         " z=", (int32_t)imu.accel_z,
+                         " fsr=", (int32_t)fsr_raw);
 
-            /* Line 2: gyro raw (uint16 cast) + trigger event */
-            rtt_log_hb("[ml:g]",
-                       " x=", (uint32_t)(uint16_t)imu.gyro_x,
-                       " y=", (uint32_t)(uint16_t)imu.gyro_y,
-                       " z=", (uint32_t)(uint16_t)imu.gyro_z,
-                       " evt=", (uint32_t)event);
+            rtt_log_hb_s("[ml:g]",
+                         " x=", (int32_t)imu.gyro_x,
+                         " y=", (int32_t)imu.gyro_y,
+                         " z=", (int32_t)imu.gyro_z,
+                         " evt=", (int32_t)event);
 
-            /* Line 3: tilt X and Y in centi-degrees, sign + abs */
-            int32_t tx_cd = (int32_t)(tilt_x * 100.0f);
-            int32_t ty_cd = (int32_t)(tilt_y * 100.0f);
-            rtt_log_hb("[ml:t]",
-                       " tx=", (tx_cd >= 0) ? (uint32_t)tx_cd : (uint32_t)(-tx_cd),
-                       " xn=", (tx_cd < 0) ? 1u : 0u,
-                       " ty=", (ty_cd >= 0) ? (uint32_t)ty_cd : (uint32_t)(-ty_cd),
-                       " yn=", (ty_cd < 0) ? 1u : 0u);
+            rtt_log_hb_s("[ml:t]",
+                         " tx=", (int32_t)(tilt_x * 100.0f),
+                         " ty=", (int32_t)(tilt_y * 100.0f),
+                         NULL, 0,
+                         NULL, 0);
         }
     }
 }
