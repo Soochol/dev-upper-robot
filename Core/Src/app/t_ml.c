@@ -94,11 +94,12 @@ void t_ml_run(void *arg)
         /* ---- 1. Read sensors ---- */
         imu_raw_t imu = {0};
         int16_t   fsr_raw = 0;
-        HAL_StatusTypeDef imu_st = HAL_ERROR, fsr_st = HAL_ERROR;
+        HAL_StatusTypeDef imu_st = HAL_ERROR;
+        (void)0; /* fsr_st removed — ads1115_read return checked inline */
 
         if (xSemaphoreTake(mtx_i2c1, pdMS_TO_TICKS(10)) == pdTRUE) {
             imu_st = icm42670p_read(&hi2c1, &imu);
-            fsr_st = ads1115_read(&hi2c1, &fsr_raw);
+            (void)ads1115_read(&hi2c1, &fsr_raw);
             xSemaphoreGive(mtx_i2c1);
         }
 
@@ -127,13 +128,18 @@ void t_ml_run(void *arg)
 
         /* ---- 5. Heartbeat log (1 Hz) ---- */
         if ((tick % 20) == 0) {
-            /* tilt in centi-degrees for the integer-only logger. */
+            /* tilt in centi-degrees. Split into sign + abs so the
+             * unsigned-only rtt_log_hb doesn't show -1.33° as 4294967163. */
             int32_t tilt_x_cd = (int32_t)(tilt_x * 100.0f);
+            uint32_t tilt_abs = (tilt_x_cd >= 0)
+                                ? (uint32_t)tilt_x_cd
+                                : (uint32_t)(-tilt_x_cd);
+            uint32_t tilt_neg = (tilt_x_cd < 0) ? 1u : 0u;
             rtt_log_hb("[t_ml]",
                        " fsr=", (uint32_t)(uint16_t)fsr_raw,
-                       " tilt_cD=", (uint32_t)tilt_x_cd,
-                       " evt=", (uint32_t)event,
-                       " st=", (uint32_t)((imu_st == HAL_OK && fsr_st == HAL_OK) ? 1 : 0));
+                       " tilt=", tilt_abs,
+                       " neg=", tilt_neg,
+                       " evt=", (uint32_t)event);
         }
     }
 }

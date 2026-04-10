@@ -232,6 +232,13 @@
 #define IMU_TILT_UP_DEG               45   /* TODO: calibrate, Phase 4b */
 #define IMU_TILT_DOWN_DEG             10   /* TODO: calibrate, Phase 4b */
 
+/* Trigger debounce: after a trigger fires, ignore further trigger events
+ * for this many milliseconds. Prevents FSR jitter near the threshold from
+ * causing rapid FORCE_UP ↔ FORCE_DOWN oscillation. 500 ms is a safe
+ * starting point — increase if bounce persists, decrease if the system
+ * feels sluggish responding to intentional state changes. */
+#define TRIGGER_DEBOUNCE_MS         500
+
 /* ========================================================================
  * Trigger provider selection (compile-time, v1)
  * ======================================================================== */
