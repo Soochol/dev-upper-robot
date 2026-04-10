@@ -38,7 +38,7 @@ static bool s_ready;
  * 20=about to f_open, 40=f_open retry. Negative = error. */
 volatile int32_t sd_dbg_step = 0;
 volatile uint32_t sd_dbg_tick = 0;  /* set by t_ml each tick — proves task runs */
-volatile uint32_t g_hf[13]; /* HardFault capture — see stm32f1xx_it.c */
+/* g_hf[13] is defined in stm32f1xx_it.c (always compiled). */
 
 /* ------------------------------------------------------------------ */
 /* Internal helpers                                                     */

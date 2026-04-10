@@ -185,13 +185,18 @@ void t_pid_run(void *arg)
         }
 
         /* ---- 5a. Heater output slew-rate limit ---- */
+        /* Bypass slew limiter when heater must shut off immediately:
+         * FAULT (safety) and FORCE_DOWN (no heating needed).
+         * Only ramp during FORCE_UP where thermal shock matters. */
         {
             static uint16_t prev_heater_duty = 0;
-            int16_t delta = (int16_t)heater_duty - (int16_t)prev_heater_duty;
-            if (delta > PID_SLEW_LIMIT_PER_CYCLE)
-                heater_duty = prev_heater_duty + PID_SLEW_LIMIT_PER_CYCLE;
-            else if (delta < -PID_SLEW_LIMIT_PER_CYCLE)
-                heater_duty = prev_heater_duty - PID_SLEW_LIMIT_PER_CYCLE;
+            if (snap_state == FSM_FORCE_UP && heater_duty > 0) {
+                int16_t delta = (int16_t)heater_duty - (int16_t)prev_heater_duty;
+                if (delta > PID_SLEW_LIMIT_PER_CYCLE)
+                    heater_duty = prev_heater_duty + PID_SLEW_LIMIT_PER_CYCLE;
+                else if (delta < -PID_SLEW_LIMIT_PER_CYCLE)
+                    heater_duty = prev_heater_duty - PID_SLEW_LIMIT_PER_CYCLE;
+            }
             prev_heater_duty = heater_duty;
         }
 

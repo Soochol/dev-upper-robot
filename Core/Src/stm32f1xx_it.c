@@ -96,11 +96,10 @@ void NMI_Handler(void)
 void HardFault_Handler(void)
 {
   /* USER CODE BEGIN HardFault_IRQn 0 */
-  /* Capture fault registers. Global so GDB can read them by name.
-   * HardFault_Handler loops forever (while(1) below), so the values
-   * are readable any time GDB connects after the fault. */
-  /* Capture fault context. g_hf[6..12] = stacked R0-R3, R12, LR, PC, xPSR */
-  extern volatile uint32_t g_hf[13];
+  /* Capture fault context into a global array readable via GDB.
+   * Defined here (always compiled) so it doesn't depend on sd_logger.
+   * g_hf[5..10] = stacked R0, R1, R12, LR, PC, xPSR. */
+  volatile static uint32_t g_hf[13];
   g_hf[0] = SCB->CFSR;
   g_hf[1] = SCB->HFSR;
   g_hf[2] = SCB->MMFAR;
