@@ -57,8 +57,8 @@ desktop.ini
 .cache/
 compile_commands.json
 
-# ML training data (collected from SD card)
-tools/ml/data/
+# ML training data — __pycache__ only
+tools/ml/__pycache__/
 
 # Local env overrides
 .env
