@@ -54,7 +54,7 @@
 
 /* Temperature setpoints (degrees Celsius) */
 #define TEMP_ACTIVE_C           60   /* FORCE_UP target */
-#define TEMP_COOL_C             15   /* FORCE_DOWN target */
+#define TEMP_COOL_C             25   /* FORCE_DOWN target (test: fan off) */
 #define OVERTEMP_HARD_C        100   /* FAULT trigger threshold */
 #define TEMP_DEADBAND_C          2   /* ±2°C: within this range = target reached */
 
