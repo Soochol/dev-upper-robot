@@ -74,30 +74,58 @@ static void buf_append(const char *str, uint16_t len)
     }
 }
 
+/** Try to parse "ml_NNN.csv" from a filename. Returns -1 on no match. */
+static int parse_ml_index(const char *name)
+{
+    /* Accept "ml_" or "ML_" prefix. */
+    if (!((name[0] == 'm' || name[0] == 'M') &&
+          (name[1] == 'l' || name[1] == 'L') &&
+          name[2] == '_'))
+        return -1;
+
+    /* Parse decimal digits after "ml_". */
+    const char *p = &name[3];
+    if (*p < '0' || *p > '9') return -1;
+
+    unsigned val = 0;
+    while (*p >= '0' && *p <= '9') {
+        val = val * 10 + (unsigned)(*p - '0');
+        p++;
+    }
+
+    /* Expect ".csv" or ".CSV" suffix. */
+    if ((p[0] == '.' &&
+         (p[1] == 'c' || p[1] == 'C') &&
+         (p[2] == 's' || p[2] == 'S') &&
+         (p[3] == 'v' || p[3] == 'V') &&
+         p[4] == '\0'))
+        return (int)val;
+
+    return -1;
+}
+
 /** Scan root directory for ml_NNN.csv and find the next available index. */
 static uint16_t scan_next_index(void)
 {
     DIR dir;
     FILINFO fno;
-    uint16_t max_idx = 0;
-    bool found_any = false;
+#if _USE_LFN
+    fno.lfname = NULL;   /* We only need 8.3 names — skip LFN. */
+    fno.lfsize = 0;
+#endif
+    int max_idx = -1;
 
     if (f_opendir(&dir, "/") != FR_OK) return 0;
 
     while (f_readdir(&dir, &fno) == FR_OK && fno.fname[0] != '\0') {
-        /* Match pattern: ml_NNN.csv */
-        unsigned idx;
-        if (sscanf(fno.fname, "ml_%u.csv", &idx) == 1 ||
-            sscanf(fno.fname, "ML_%u.CSV", &idx) == 1) {
-            if (!found_any || idx > max_idx) {
-                max_idx = (uint16_t)idx;
-                found_any = true;
-            }
+        int idx = parse_ml_index(fno.fname);
+        if (idx >= 0 && idx > max_idx) {
+            max_idx = idx;
         }
     }
     f_closedir(&dir);
 
-    return found_any ? (uint16_t)(max_idx + 1) : 0;
+    return (max_idx >= 0) ? (uint16_t)(max_idx + 1) : 0;
 }
 
 /** Write data to RTT with backpressure handling (yields when buffer full). */
@@ -143,7 +171,6 @@ bool sd_logger_init(void)
         clkcr &= ~0xFFu;
         clkcr |= 10u;
         SDIO->CLKCR = clkcr;
-        rtt_log_str("[sd] clk->6MHz");
     }
 
     /* Scan for next file number. */
