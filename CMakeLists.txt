@@ -61,6 +61,10 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 
     # I2C sensor drivers (Phase 3a): TBP-H70 IR temperature + bus scanner.
     Core/Src/app/sensors_i2c.c
+
+    # Control loop (Phase 3b): PID controller and TIM1/GPIO actuators.
+    Core/Src/app/pid.c
+    Core/Src/app/actuators.c
 )
 
 # Add include paths

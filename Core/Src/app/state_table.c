@@ -12,16 +12,7 @@
 
 #include "app/fsm.h"
 #include "app/config.h"
-
-/* LED pattern identifiers. Defined here in Phase 2; will move to a future
- * actuators.h when Phase 6 implements the WS2812 driver. The numeric values
- * stay stable so state_table entries below need no update at that time. */
-typedef enum {
-    LED_OFF          = 0,
-    LED_FADE_YELLOW  = 1,   /* FORCE_DOWN: cool-down indicator */
-    LED_RAMP_YELLOW  = 2,   /* FORCE_UP: heating indicator */
-    LED_FLASH_RED    = 3,   /* FAULT: alarm */
-} led_pattern_t;
+#include "app/actuators.h"   /* led_pattern_t enum lives here in Phase 3b+ */
 
 /* The output table. Order MUST match fsm_state_t in fsm.h.
  *
