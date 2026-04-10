@@ -30,6 +30,7 @@
 #include "app/ipc.h"
 #include "app/fsm.h"
 #include "app/sensors_i2c.h"
+#include "app/features.h"
 #include "app/trigger.h"
 #include "app/rtt_log.h"
 
@@ -56,6 +57,10 @@ void t_ml_run(void *arg)
         rtt_log_str("[t_ml] init: mtx_i2c1 timeout");
     }
 
+    /* Tilt computation state — persistent across ticks. */
+    tilt_state_t tilt;
+    tilt_state_init(&tilt);
+
     TickType_t next_wake = xTaskGetTickCount();
     uint32_t   tick = 0;
 
@@ -74,11 +79,17 @@ void t_ml_run(void *arg)
             xSemaphoreGive(mtx_i2c1);
         }
 
-        /* ---- 2. Pack snapshot ---- */
+        /* ---- 2. Feature extraction: tilt from accel ---- */
+        float tilt_x = 0.0f, tilt_y = 0.0f;
+        if (imu_st == HAL_OK) {
+            tilt_update(&tilt, &imu, &tilt_x, &tilt_y);
+        }
+
+        /* ---- 3. Pack snapshot ---- */
         sensor_snapshot_t snap = {
             .fsr_raw      = fsr_raw,
             .imu          = imu,
-            .imu_tilt_deg = 0.0f,  /* Phase 4b: atan2 from accel */
+            .imu_tilt_deg = tilt_x,  /* X-axis tilt relative to boot pose */
         };
 
         /* ---- 3. Evaluate trigger ---- */
@@ -93,9 +104,11 @@ void t_ml_run(void *arg)
 
         /* ---- 5. Heartbeat log (1 Hz) ---- */
         if ((tick % 20) == 0) {
+            /* tilt in centi-degrees for the integer-only logger. */
+            int32_t tilt_x_cd = (int32_t)(tilt_x * 100.0f);
             rtt_log_hb("[t_ml]",
                        " fsr=", (uint32_t)(uint16_t)fsr_raw,
-                       " imu_z=", (uint32_t)(uint16_t)imu.accel_z,
+                       " tilt_cD=", (uint32_t)tilt_x_cd,
                        " evt=", (uint32_t)event,
                        " st=", (uint32_t)((imu_st == HAL_OK && fsr_st == HAL_OK) ? 1 : 0));
         }

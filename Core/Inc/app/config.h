@@ -141,15 +141,48 @@
  *   4. From then on, burst-read 12 bytes from ACCEL_DATA_X1 (0x0B). */
 
 #define IMU_I2C_ADDR_7B             0x69
-#define ICM42670P_REG_WHO_AM_I      0x75
-#define ICM42670P_WHO_AM_I_VALUE    0x67
-#define ICM42670P_REG_PWR_MGMT0     0x1F
-/* PWR_MGMT0 value: ACCEL_LP_CLK_SEL=0, IDLE=0, GYRO_MODE=11 (Low Noise),
- * ACCEL_MODE=11 (Low Noise). All other bits 0. */
-#define ICM42670P_PWR_MGMT0_ON      0x0F
-#define ICM42670P_REG_ACCEL_DATA_X1 0x0B  /* burst read start: 12 bytes */
-#define ICM42670P_DATA_BURST_LEN    12
-#define ICM42670P_STARTUP_DELAY_MS  10
+
+/* ICM42670P register addresses (BANK0, direct I2C access). */
+#define ICM42670P_REG_SIGNAL_PATH_RESET  0x02
+#define ICM42670P_REG_DRIVE_CONFIG2      0x04
+#define ICM42670P_REG_INT_CONFIG         0x06
+#define ICM42670P_REG_PWR_MGMT0         0x1F
+#define ICM42670P_REG_GYRO_CONFIG0      0x20
+#define ICM42670P_REG_ACCEL_CONFIG0     0x21
+#define ICM42670P_REG_GYRO_CONFIG1      0x23
+#define ICM42670P_REG_ACCEL_CONFIG1     0x24
+#define ICM42670P_REG_INT_SOURCE0       0x2B
+#define ICM42670P_REG_INT_STATUS        0x3A
+#define ICM42670P_REG_INTF_CONFIG1      0x36
+#define ICM42670P_REG_WHO_AM_I          0x75
+#define ICM42670P_REG_BLK_SEL_R        0x7C
+#define ICM42670P_REG_BLK_SEL_W        0x79
+#define ICM42670P_REG_ACCEL_DATA_X1    0x0B  /* burst read: 12 bytes */
+#define ICM42670P_DATA_BURST_LEN       12
+#define ICM42670P_WHO_AM_I_VALUE       0x67
+
+/* Init register values (from FSR/IMU hardware reference guide). */
+#define ICM42670P_DRIVE_CONFIG2_VAL    0x09  /* I2C drive strength */
+#define ICM42670P_SOFT_RESET_BIT       0x10  /* SIGNAL_PATH_RESET bit 4 */
+/* ACCEL_CONFIG0: FS_SEL=00 (±2g), ODR=1001 (100Hz) → 0x09 */
+#define ICM42670P_ACCEL_CONFIG0_VAL    0x09
+/* ACCEL_CONFIG1: ACCEL_UI_FILT_BW=101 (25Hz) → bits[2:0] = 5, rest 0 → 0x05 */
+#define ICM42670P_ACCEL_CONFIG1_VAL    0x05
+/* GYRO_CONFIG0: FS_SEL=00 (±2000dps), ODR=1001 (100Hz) → 0x09 */
+#define ICM42670P_GYRO_CONFIG0_VAL     0x09
+/* GYRO_CONFIG1: GYRO_UI_FILT_BW=011 (73Hz) → bits[2:0] = 3, rest 0 → 0x03 */
+#define ICM42670P_GYRO_CONFIG1_VAL     0x03
+/* PWR_MGMT0: ACCEL=LN(11), GYRO=LN(11) → 0x0F */
+#define ICM42670P_PWR_MGMT0_ON        0x0F
+
+/* Timing */
+#define ICM42670P_RESET_DELAY_MS       100  /* after soft reset */
+#define ICM42670P_STARTUP_DELAY_MS      50  /* after PWR_MGMT0 enable */
+
+/* Conversion: ±2g full-scale, 16384 LSB/g */
+#define IMU_ACCEL_SCALE_G   (2.0f / 32768.0f)
+/* ±2000 dps full-scale */
+#define IMU_GYRO_SCALE_DPS  (2000.0f / 32768.0f)
 
 /* ========================================================================
  * ADS1115 16-bit ADC (Texas Instruments) — used as the FSR front-end

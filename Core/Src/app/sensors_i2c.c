@@ -115,37 +115,89 @@ HAL_StatusTypeDef sensors_i2c_init(I2C_HandleTypeDef *hi2c)
  * ICM42670P IMU
  * ==================================================================== */
 
+/* Helper: write one byte to an ICM42670P BANK0 register. */
+static HAL_StatusTypeDef imu_write_reg(I2C_HandleTypeDef *hi2c,
+                                       uint8_t reg, uint8_t val)
+{
+    return HAL_I2C_Mem_Write(hi2c, IMU_I2C_ADDR_7B << 1,
+                             reg, I2C_MEMADD_SIZE_8BIT,
+                             &val, 1, TBP_HAL_TIMEOUT_MS);
+}
+
+/* Helper: read one byte from an ICM42670P BANK0 register. */
+static HAL_StatusTypeDef imu_read_reg(I2C_HandleTypeDef *hi2c,
+                                      uint8_t reg, uint8_t *val)
+{
+    return HAL_I2C_Mem_Read(hi2c, IMU_I2C_ADDR_7B << 1,
+                            reg, I2C_MEMADD_SIZE_8BIT,
+                            val, 1, TBP_HAL_TIMEOUT_MS);
+}
+
 HAL_StatusTypeDef icm42670p_init(I2C_HandleTypeDef *hi2c)
 {
-    uint8_t who = 0;
-    HAL_StatusTypeDef st = HAL_I2C_Mem_Read(hi2c,
-                                            IMU_I2C_ADDR_7B << 1,
-                                            ICM42670P_REG_WHO_AM_I,
-                                            I2C_MEMADD_SIZE_8BIT,
-                                            &who, 1,
-                                            TBP_HAL_TIMEOUT_MS);
+    HAL_StatusTypeDef st;
+    uint8_t val;
+
+    /* Step 0: I2C drive config (reference guide Step 0). */
+    st = imu_write_reg(hi2c, ICM42670P_REG_DRIVE_CONFIG2,
+                       ICM42670P_DRIVE_CONFIG2_VAL);
+    if (st != HAL_OK) {
+        rtt_log_str("[imu] init: DRIVE_CONFIG2 failed");
+        return st;
+    }
+
+    /* Disable I3C by clearing I3C_SDR_EN and I3C_DDR_EN in INTF_CONFIG1.
+     * Read-modify-write to preserve other bits. */
+    st = imu_read_reg(hi2c, ICM42670P_REG_INTF_CONFIG1, &val);
+    if (st == HAL_OK) {
+        val &= ~0x18u;  /* clear bits 4:3 (I3C_SDR_EN, I3C_DDR_EN) */
+        imu_write_reg(hi2c, ICM42670P_REG_INTF_CONFIG1, val);
+    }
+
+    /* Step 1: Soft reset. Clear bank selectors first. */
+    imu_write_reg(hi2c, ICM42670P_REG_BLK_SEL_R, 0x00);
+    imu_write_reg(hi2c, ICM42670P_REG_BLK_SEL_W, 0x00);
+    st = imu_write_reg(hi2c, ICM42670P_REG_SIGNAL_PATH_RESET,
+                       ICM42670P_SOFT_RESET_BIT);
+    if (st != HAL_OK) {
+        rtt_log_str("[imu] init: soft reset failed");
+        return st;
+    }
+    vTaskDelay(pdMS_TO_TICKS(ICM42670P_RESET_DELAY_MS));
+
+    /* Read INT_STATUS to clear the reset-done flag. */
+    imu_read_reg(hi2c, ICM42670P_REG_INT_STATUS, &val);
+
+    /* Step 2: WHO_AM_I check. */
+    st = imu_read_reg(hi2c, ICM42670P_REG_WHO_AM_I, &val);
     if (st != HAL_OK) {
         rtt_log_str("[imu] init: WHO_AM_I read failed");
         return st;
     }
-    if (who != ICM42670P_WHO_AM_I_VALUE) {
-        rtt_log_kv_hex("[imu] init: unexpected WHO_AM_I=", who);
+    if (val != ICM42670P_WHO_AM_I_VALUE) {
+        rtt_log_kv_hex("[imu] init: bad WHO_AM_I=", val);
         return HAL_ERROR;
     }
-    rtt_log_kv_hex("[imu] init: WHO_AM_I ok=", who);
+    rtt_log_kv_hex("[imu] init: WHO_AM_I ok=", val);
 
-    uint8_t pwr = ICM42670P_PWR_MGMT0_ON;
-    st = HAL_I2C_Mem_Write(hi2c,
-                           IMU_I2C_ADDR_7B << 1,
-                           ICM42670P_REG_PWR_MGMT0,
-                           I2C_MEMADD_SIZE_8BIT,
-                           &pwr, 1,
-                           TBP_HAL_TIMEOUT_MS);
-    if (st != HAL_OK) {
-        rtt_log_str("[imu] init: PWR_MGMT0 write failed");
-        return st;
-    }
-    rtt_log_str("[imu] init: accel+gyro enabled");
+    /* Step 4: Accelerometer config — ±2g, 100 Hz ODR, 25 Hz LPF. */
+    imu_write_reg(hi2c, ICM42670P_REG_ACCEL_CONFIG0,
+                  ICM42670P_ACCEL_CONFIG0_VAL);
+    imu_write_reg(hi2c, ICM42670P_REG_ACCEL_CONFIG1,
+                  ICM42670P_ACCEL_CONFIG1_VAL);
+
+    /* Step 5: Gyroscope config — ±2000 dps, 100 Hz ODR, 73 Hz LPF. */
+    imu_write_reg(hi2c, ICM42670P_REG_GYRO_CONFIG0,
+                  ICM42670P_GYRO_CONFIG0_VAL);
+    imu_write_reg(hi2c, ICM42670P_REG_GYRO_CONFIG1,
+                  ICM42670P_GYRO_CONFIG1_VAL);
+
+    /* Step 6: Power on — accel + gyro Low Noise mode. */
+    imu_write_reg(hi2c, ICM42670P_REG_PWR_MGMT0,
+                  ICM42670P_PWR_MGMT0_ON);
+    vTaskDelay(pdMS_TO_TICKS(ICM42670P_STARTUP_DELAY_MS));
+
+    rtt_log_str("[imu] init: +-2g 100Hz, +-2000dps 100Hz, LN mode");
     return HAL_OK;
 }
 
