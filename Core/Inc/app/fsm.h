@@ -25,9 +25,8 @@
  *   Any state ── fault_req ──▶ FAULT
  *                              │
  *                              ▼
- *                  PC5 release → board power off
- *                  (recoverable only by physical
- *                   power cycle by the user)
+ *                  heater=0, fan=0 (terminal,
+ *                  recovery = power cycle)
  */
 
 #ifndef APP_FSM_H

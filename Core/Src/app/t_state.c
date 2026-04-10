@@ -10,9 +10,7 @@
  *      so a sensor fault during a trigger event still routes to FAULT.
  *   4. On state change: log transition, publish ctrl_cmd_t to T_PID with
  *      the new setpoint/fan/LED values from state_table.
- *   5. On FAULT entry: confirm PID disable, then release PC5 power latch
- *      → board powers off. Code beyond the release call must not depend
- *      on continued execution.
+ *   5. On FAULT entry: log the event. T_PID forces heater=0/fan=0.
  *
  * Buttons are not used (D13). The boot initial state is FORCE_DOWN (D8).
  */
@@ -122,7 +120,7 @@ void t_state_run(void *arg)
             publish_ctrl(state);
 
             if (state == FSM_FAULT) {
-                rtt_log_str("[t_state] FAULT: heater off, fan cooling");
+                rtt_log_str("[t_state] FAULT: all outputs off");
             }
         }
 

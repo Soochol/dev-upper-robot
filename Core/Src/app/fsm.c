@@ -18,11 +18,8 @@
  *
  * All other (state, event) pairs leave the state unchanged.
  *
- * FAULT is terminal at the FSM level. The actual recovery path is hardware:
- * T_STATE confirms heater=0 + fan=0 then asserts PC5 release, which removes
- * board power. Boot is the only re-entry point. Encoding this as "terminal"
- * in the FSM avoids any future-developer mistake of adding a transition
- * out of FAULT in code without first removing the PC5 release path.
+ * FAULT is terminal at the FSM level. T_PID forces heater=0/fan=0.
+ * Recovery requires power cycle (reboot).
  */
 
 #include "app/fsm.h"
