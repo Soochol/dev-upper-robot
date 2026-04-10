@@ -55,7 +55,9 @@ static void flush_buf(void)
     if (fr != FR_OK || bw != s_buf_pos) {
         rtt_log_str("[sd] write err");
     }
-    f_sync(&s_file);
+    /* f_sync() removed: syncing on every flush forces FAT table rewrites
+     * at ~0.5 s intervals which overwhelms the SD card and causes write
+     * failures. f_close() in sd_logger_stop() syncs implicitly. */
     s_buf_pos = 0;
 }
 

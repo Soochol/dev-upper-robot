@@ -328,7 +328,9 @@
 #endif
 
 /* SD logging write buffer size. Must be a multiple of the SDIO block
- * size (512) for aligned writes. One block is sufficient at 20 Hz. */
-#define SD_LOG_BUF_SIZE         512
+ * size (512) for aligned writes. 2048 = 4 blocks; at 20 Hz / ~45 B per
+ * row this flushes roughly every 2 seconds, reducing SDIO traffic vs
+ * the previous 512 B (flush every 0.5 s) that triggered write errors. */
+#define SD_LOG_BUF_SIZE         2048
 
 #endif /* APP_CONFIG_H */

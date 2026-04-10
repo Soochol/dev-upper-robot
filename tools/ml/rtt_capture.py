@@ -135,24 +135,49 @@ def find_rtt_address(elf_path):
     return None
 
 
+def wait_for_port(host, port, timeout=15.0):
+    """Poll until the TCP port is accepting connections."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            s = socket.create_connection((host, port), timeout=0.5)
+            s.close()
+            return True
+        except (ConnectionRefusedError, OSError):
+            time.sleep(0.3)
+    return False
+
+
 def start_gdb_server():
     """Start ST-LINK_gdbserver via wrapper script (avoids hook block)."""
     wrapper = Path('/tmp/rtt_gdbserver.sh')
-    # -m 1 = hot plug (no reset). The MCU must keep running so the
-    # SD data and RTT buffer are preserved. -m 0 would halt at
-    # Reset_Handler and wipe the session.
+    # -m 0 = Connect Under Reset (reliable target detection).
+    # MCU resets on connect, but that's fine for the normal workflow:
+    # start capture → press SW1 to record → press SW2 to dump.
     wrapper.write_text(f"""#!/bin/bash
 exec {GDB_SERVER} -p {GDB_PORT} \\
     -cp {STM32CLT}/STM32CubeProgrammer/bin \\
-    -d -s -k -m 1 2>&1
+    -d -s -k -m 0 2>&1
 """)
     wrapper.chmod(0o755)
 
+    log_path = Path('/tmp/rtt_gdbserver.log')
+    log_file = open(log_path, 'w')
     proc = subprocess.Popen(
         [str(wrapper)],
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    # Wait for server to initialize and connect to MCU (hot-plug takes longer)
-    time.sleep(4.0)
+        stdout=log_file, stderr=log_file)
+
+    print("GDB server starting...", end='', flush=True)
+    if not wait_for_port('localhost', GDB_PORT, timeout=15.0):
+        proc.terminate()
+        log_file.flush()
+        print(f" FAILED (timeout) — see {log_path}")
+        try:
+            print(log_path.read_text()[-800:])
+        except Exception:
+            pass
+        return None
+    print(" ready")
     return proc
 
 
@@ -293,8 +318,10 @@ def main():
     # Start GDB server
     server_proc = None
     if not args.no_server:
-        print("Starting GDB server...")
         server_proc = start_gdb_server()
+        if server_proc is None:
+            print("ERROR: GDB server failed to start")
+            return 1
 
     try:
         # Connect via GDB remote protocol
