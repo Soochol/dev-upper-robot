@@ -16,6 +16,11 @@
 #include "app/rtt_log.h"
 #include "SEGGER_RTT.h"
 
+/* When true, all rtt_log_* functions return immediately. Set by
+ * rtt_log_mute() during SD card CSV dump to prevent debug logs from
+ * interleaving with dump data on RTT channel 0. */
+static volatile bool s_muted = false;
+
 /* Append a NUL-terminated string to dst, returning the new write pointer. */
 static char *append_str(char *dst, const char *src)
 {
@@ -79,6 +84,7 @@ static char *append_u32_hex(char *dst, uint32_t v)
 
 void rtt_log_str(const char *msg)
 {
+    if (s_muted) return;
     char  buf[96];
     char *p   = buf;
     char *end = buf + sizeof(buf) - 2;  /* reserve 2 for CRLF */
@@ -90,6 +96,7 @@ void rtt_log_str(const char *msg)
 
 void rtt_log_kv(const char *prefix, uint32_t value)
 {
+    if (s_muted) return;
     char  buf[96];
     char *p = buf;
     p = append_str(p, prefix);
@@ -105,6 +112,7 @@ void rtt_log_hb(const char *tag,
                 const char *kc, uint32_t vc,
                 const char *kd, uint32_t vd)
 {
+    if (s_muted) return;
     char  buf[96];
     char *p   = buf;
     char *end = buf + sizeof(buf) - 4;  /* leave room for "\r\n" + safety */
@@ -125,6 +133,7 @@ void rtt_log_hb_s(const char *tag,
                   const char *kc, int32_t vc,
                   const char *kd, int32_t vd)
 {
+    if (s_muted) return;
     char  buf[96];
     char *p   = buf;
     char *end = buf + sizeof(buf) - 4;
@@ -141,6 +150,7 @@ void rtt_log_hb_s(const char *tag,
 
 void rtt_log_kv_hex(const char *prefix, uint32_t value)
 {
+    if (s_muted) return;
     char  buf[96];
     char *p = buf;
     p = append_str(p, prefix);
@@ -150,4 +160,9 @@ void rtt_log_kv_hex(const char *prefix, uint32_t value)
     *p++ = '\r';
     *p++ = '\n';
     SEGGER_RTT_Write(0, buf, (unsigned)(p - buf));
+}
+
+void rtt_log_mute(bool muted)
+{
+    s_muted = muted;
 }

@@ -16,6 +16,7 @@
 #ifndef APP_RTT_LOG_H
 #define APP_RTT_LOG_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 /* Simple string log. Appends "\r\n". */
@@ -44,5 +45,11 @@ void rtt_log_hb_s(const char *tag,
  * addresses, register dumps, and bitfields where decimal output makes
  * the value harder to interpret. */
 void rtt_log_kv_hex(const char *prefix, uint32_t value);
+
+/* Suppress all rtt_log_* output while true.
+ * Used by sd_logger_dump_rtt() to prevent debug-log interleaving with
+ * CSV dump data on RTT channel 0. Dump framing markers and CSV data
+ * use SEGGER_RTT_Write directly so they are NOT affected by mute. */
+void rtt_log_mute(bool muted);
 
 #endif /* APP_RTT_LOG_H */

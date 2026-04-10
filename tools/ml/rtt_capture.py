@@ -151,7 +151,8 @@ exec {GDB_SERVER} -p {GDB_PORT} \\
     proc = subprocess.Popen(
         [str(wrapper)],
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    time.sleep(1.5)  # Wait for server to start
+    # Wait for server to initialize and connect to MCU (hot-plug takes longer)
+    time.sleep(4.0)
     return proc
 
 

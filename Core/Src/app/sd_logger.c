@@ -285,6 +285,12 @@ void sd_logger_dump_rtt(void)
         return;
     }
 
+    /* Mute debug logs for the duration of the dump to prevent them from
+     * interleaving with CSV data on RTT channel 0. Framing markers and
+     * CSV chunks use rtt_write_blocking (direct SEGGER_RTT_Write) and
+     * are NOT affected by mute. */
+    rtt_log_mute(true);
+
     /* Framing start marker. */
     {
         char marker[48];
@@ -305,5 +311,6 @@ void sd_logger_dump_rtt(void)
     rtt_write_blocking(end, sizeof(end) - 1);
 
     f_close(&f);
+    rtt_log_mute(false);
     rtt_log_str("[sd] dump done");
 }
