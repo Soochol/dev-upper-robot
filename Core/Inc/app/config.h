@@ -33,7 +33,7 @@
  * after measuring uxTaskGetStackHighWaterMark in Phase 6. */
 #define STK_T_STATE_WORDS   (384 / 4)
 #define STK_T_PID_WORDS     (512 / 4)
-#define STK_T_ML_WORDS      (640 / 4)
+#define STK_T_ML_WORDS      (1024 / 4)
 #define STK_T_LOGGER_WORDS  (512 / 4)
 
 /* Task periods (ms). All application tasks run at 20 Hz. The 25 ms offset on
@@ -55,7 +55,7 @@
 /* Temperature setpoints (degrees Celsius) */
 #define TEMP_ACTIVE_C           60   /* FORCE_UP target */
 #define TEMP_COOL_C             25   /* FORCE_DOWN target (test: fan off) */
-#define OVERTEMP_HARD_C        100   /* FAULT trigger threshold */
+#define OVERTEMP_HARD_C         80   /* heater element absolute max (FAULT) */
 #define TEMP_DEADBAND_C          2   /* ±2°C: within this range = target reached */
 
 /* Fan duty cycle (%) — state table default. t_pid.c overrides based on
@@ -273,6 +273,15 @@
 #define PID_KI            0.1f
 #define PID_KD            0.5f
 
+/* Setpoint weighting: P term uses Kp * (b * sp - meas).
+ * b = 1.0 is standard PID, b = 0.7 reduces overshoot on setpoint steps
+ * while preserving full disturbance rejection. */
+#define PID_SETPOINT_WEIGHT_B   0.7f
+
+/* Derivative filter coefficient N = Td / Tf. Higher N = less filtering.
+ * N = 10 limits D-term bandwidth to ~10x the P-term bandwidth. */
+#define PID_DERIV_FILTER_N     10.0f
+
 /* PID output range. TIM1 CH1 ARR is 1000 (see Core/Src/tim.c MX_TIM1_Init),
  * so a duty of 0..1000 maps directly to TIM1->CCR1 register values. */
 #define PID_OUTPUT_MIN       0
@@ -282,6 +291,10 @@
  * integral and derivative terms. */
 #define PID_DT_S          (PERIOD_T_PID_MS / 1000.0f)
 
+/* Heater output slew-rate limit: max delta-duty per 50 ms cycle.
+ * 50 out of 1000 per cycle → 0 to 100 % in 1.0 s. */
+#define PID_SLEW_LIMIT_PER_CYCLE  50
+
 /* ========================================================================
  * Queue sizes (number of items)
  * ======================================================================== */
@@ -290,5 +303,32 @@
 #define Q_CTRL_TO_PID_DEPTH        4
 #define Q_TRIGGER_TO_STATE_DEPTH   4
 #define Q_FAULT_REQ_DEPTH          2
+
+/* ========================================================================
+ * ML feature extraction
+ * ========================================================================
+ * Sliding window size for temporal features (mean, slope, variance).
+ * Start with 20 (= 1 second at 20 Hz). Tune via Python training pipeline
+ * by comparing accuracy with 10, 20, 30. Rebuild MCU after changing. */
+
+#define ML_WINDOW_SIZE          20
+
+/* ========================================================================
+ * Data collection mode (SD card CSV logging)
+ * ========================================================================
+ * When enabled, T_ML writes raw sensor values to SD card in CSV format
+ * for offline ML training. Disable for normal operation (inference only).
+ *
+ * SD write buffer is 512 bytes (one SDIO block). At 20 Hz with ~60
+ * bytes per CSV row, the buffer flushes roughly every 0.4 seconds.
+ * Each flush costs ~2 ms (DMA), negligible against the 50 ms tick. */
+
+#ifndef DATA_COLLECT_MODE
+#define DATA_COLLECT_MODE       1
+#endif
+
+/* SD logging write buffer size. Must be a multiple of the SDIO block
+ * size (512) for aligned writes. One block is sufficient at 20 Hz. */
+#define SD_LOG_BUF_SIZE         512
 
 #endif /* APP_CONFIG_H */

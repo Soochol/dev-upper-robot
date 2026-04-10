@@ -58,9 +58,10 @@ void t_pid_run(void *arg)
 
     /* PID instance — gains from config.h, output range 0..1000 to match
      * TIM1 ARR. PLACEHOLDER gains; tune in Phase 6. */
-    pid_t heater_pid;
+    pid_ctrl_t heater_pid;
     pid_init(&heater_pid, PID_KP, PID_KI, PID_KD,
              (float)PID_OUTPUT_MIN, (float)PID_OUTPUT_MAX);
+    pid_set_tuning(&heater_pid, PID_SETPOINT_WEIGHT_B, PID_DERIV_FILTER_N);
 
     /* Sensor subsystem bring-up — 200 ms wait + bus scan + IR ping. */
     if (xSemaphoreTake(mtx_i2c1, pdMS_TO_TICKS(500)) == pdTRUE) {
@@ -147,48 +148,62 @@ void t_pid_run(void *arg)
             (void)xQueueSendToBack(q_fault_req, &freq, 0);
         }
 
-        /* ---- 5. PID compute ---- */
-        uint16_t heater_duty = 0;
-        if (current_cmd.pid_enabled && ir_ok && !overtemp) {
-            float output = pid_compute(&heater_pid,
-                                       (float)current_cmd.setpoint_c,
-                                       measurement,
-                                       PID_DT_S);
-            if (output < 0.0f) output = 0.0f;
-            heater_duty = (uint16_t)output;
-        }
-
-        /* ---- 6. Snapshot FSM state once per cycle for consistency ---- */
+        /* ---- 5. FSM-aware control: compute PID only in FORCE_UP ----
+         *
+         * Bug fix: previously pid_compute ran before FSM state checks,
+         * so the integrator accumulated error even when the output was
+         * unconditionally overridden to 0 (FORCE_DOWN / deadband).
+         * Now we branch on FSM state first and only call pid_compute
+         * when the PID actually drives the heater. */
         fsm_state_t snap_state = (fsm_state_t)g_fsm_state;
         uint8_t fan_pct = current_cmd.fan_duty_pct;
         led_pattern_t led = (led_pattern_t)current_cmd.led_pattern;
+        uint16_t heater_duty = 0;
 
         if (snap_state == FSM_FAULT) {
-            heater_duty = 0;
             fan_pct = 0;
             led = LED_FLASH_RED;
             pid_reset(&heater_pid);
-        }
 
-        /* ---- 6a. FORCE_DOWN: fan on if above deadband, heater off ---- */
-        if (snap_state == FSM_FORCE_DOWN) {
-            heater_duty = 0;
+        } else if (snap_state == FSM_FORCE_UP) {
+            if (current_cmd.pid_enabled && ir_ok && !overtemp) {
+                float output = pid_compute(&heater_pid,
+                                           (float)current_cmd.setpoint_c,
+                                           measurement,
+                                           PID_DT_S);
+                if (output < 0.0f) output = 0.0f;
+                heater_duty = (uint16_t)output;
+
+                float err = (float)current_cmd.setpoint_c - measurement;
+                if (err <= (float)TEMP_DEADBAND_C)
+                    heater_duty = 0;
+            }
+
+        } else if (snap_state == FSM_FORCE_DOWN) {
             float err = measurement - (float)current_cmd.setpoint_c;
             fan_pct = (ir_ok && err > (float)TEMP_DEADBAND_C) ? 50 : 0;
         }
 
-        /* ---- 6b. FORCE_UP: apply deadband to heater ---- */
-        if (snap_state == FSM_FORCE_UP) {
-            float err = (float)current_cmd.setpoint_c - measurement;
-            if (err <= (float)TEMP_DEADBAND_C)
-                heater_duty = 0;
+        /* ---- 5a. Heater output slew-rate limit ---- */
+        {
+            static uint16_t prev_heater_duty = 0;
+            int16_t delta = (int16_t)heater_duty - (int16_t)prev_heater_duty;
+            if (delta > PID_SLEW_LIMIT_PER_CYCLE)
+                heater_duty = prev_heater_duty + PID_SLEW_LIMIT_PER_CYCLE;
+            else if (delta < -PID_SLEW_LIMIT_PER_CYCLE)
+                heater_duty = prev_heater_duty - PID_SLEW_LIMIT_PER_CYCLE;
+            prev_heater_duty = heater_duty;
         }
 
-        /* ---- 6c. LED blink while approaching target ---- */
+        /* ---- 6. LED blink while approaching target ----
+         *
+         * Bug fix: removed pid_reset() that was called on every LED
+         * pattern change. This was zeroing the integrator on every
+         * FORCE_UP/FORCE_DOWN transition, defeating bumpless transfer.
+         * pid_reset is now only called on FAULT entry (above). */
         if (current_cmd.led_pattern != prev_led_pat) {
             reached_target = false;
             prev_led_pat = current_cmd.led_pattern;
-            pid_reset(&heater_pid);
         }
         if (ir_ok && !reached_target) {
             if (led == LED_RAMP_YELLOW &&
