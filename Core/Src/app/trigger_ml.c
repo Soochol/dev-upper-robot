@@ -10,6 +10,7 @@
  * the current FSM state (same semantics as trigger_rule.c).
  */
 
+#include <math.h>
 #include "FreeRTOS.h"
 #include "task.h"
 #include "app/trigger.h"
@@ -61,10 +62,13 @@ static uint8_t ml_eval(const sensor_snapshot_t *snap, fsm_state_t cur)
     ml_call_count++;
     if ((ml_call_count % 20) == 0) {
         rtt_log_hb_s("[ml:p]",
-                     " d=", (int32_t)(output[0] * 100.0),
                      " u=", (int32_t)(output[1] * 100.0),
-                     " tx=", (int32_t)(snap->ml_feat->v[1] * 100.0f),
-                     " fs=", (int32_t)snap->ml_feat->v[5]);
+                     " gy=", (int32_t)(sqrtf(
+                         (float)snap->imu.gyro_x * (2000.0f/32768.0f) * (float)snap->imu.gyro_x * (2000.0f/32768.0f) +
+                         (float)snap->imu.gyro_y * (2000.0f/32768.0f) * (float)snap->imu.gyro_y * (2000.0f/32768.0f) +
+                         (float)snap->imu.gyro_z * (2000.0f/32768.0f) * (float)snap->imu.gyro_z * (2000.0f/32768.0f)) * 10.0f),
+                     " fs=", (int32_t)snap->ml_feat->v[5],
+                     " ax=", (int32_t)(snap->ml_feat->v[3] * 1000.0f));
     }
 
     /* Directional filtering with consecutive-tick confirmation.
@@ -73,7 +77,16 @@ static uint8_t ml_eval(const sensor_snapshot_t *snap, fsm_state_t cur)
     static uint8_t up_streak   = 0;
     static uint8_t down_streak = 0;
 
-    if (cur == FSM_FORCE_DOWN && output[1] > ML_PROB_THRESHOLD) {
+    /* FORCE_UP requires gyro activity RIGHT NOW (not windowed mean).
+     * Instantaneous gyro from raw IMU — drops to 0 immediately when
+     * arm stops. Prevents "arm already up + FSR press" false trigger. */
+    float gx = (float)snap->imu.gyro_x * (2000.0f / 32768.0f);
+    float gy_raw = (float)snap->imu.gyro_y * (2000.0f / 32768.0f);
+    float gz = (float)snap->imu.gyro_z * (2000.0f / 32768.0f);
+    float gyro_now = sqrtf(gx * gx + gy_raw * gy_raw + gz * gz);
+
+    if (cur == FSM_FORCE_DOWN && output[1] > ML_PROB_THRESHOLD
+                              && gyro_now > 30.0f) {
         up_streak++;
         down_streak = 0;
     } else if (cur == FSM_FORCE_UP && output[0] > ML_PROB_THRESHOLD) {
