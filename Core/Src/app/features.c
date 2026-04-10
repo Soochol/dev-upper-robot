@@ -109,3 +109,132 @@ void tilt_update(tilt_state_t *s,
     *out_tilt_x_deg = s->filtered_tilt_x - s->ref_tilt_x;
     *out_tilt_y_deg = s->filtered_tilt_y - s->ref_tilt_y;
 }
+
+/* ========================================================================
+ * ML feature extraction — sliding window statistics
+ * ======================================================================== */
+
+void ml_window_init(ml_window_t *w)
+{
+    w->head  = 0;
+    w->count = 0;
+    /* Buffers are zero-initialized by BSS for static allocation. */
+}
+
+/* Compute mean of a circular buffer. n = min(count, ML_WINDOW_SIZE). */
+static float win_mean(const float *buf, uint16_t n)
+{
+    float sum = 0.0f;
+    for (uint16_t i = 0; i < n; i++) {
+        sum += buf[i];
+    }
+    return sum / (float)n;
+}
+
+/* Compute least-squares slope over the window.
+ *
+ *   slope = (N * sum(i*y) - sum(i)*sum(y)) / (N * sum(i²) - sum(i)²)
+ *
+ * For a fixed window of size N, sum(i) and sum(i²) are constants:
+ *   sum(i)  = N*(N-1)/2
+ *   sum(i²) = N*(N-1)*(2N-1)/6
+ *
+ * The buffer is circular: the oldest sample is at head (wraps around).
+ * We iterate from oldest to newest so i=0 is the oldest sample.
+ */
+static float win_slope(const float *buf, uint16_t head, uint16_t n)
+{
+    float sum_y  = 0.0f;
+    float sum_iy = 0.0f;
+
+    for (uint16_t k = 0; k < n; k++) {
+        uint16_t idx = (head + k) % ML_WINDOW_SIZE;
+        float y = buf[idx];
+        sum_y  += y;
+        sum_iy += (float)k * y;
+    }
+
+    float fn = (float)n;
+    float sum_i  = fn * (fn - 1.0f) / 2.0f;
+    float sum_i2 = fn * (fn - 1.0f) * (2.0f * fn - 1.0f) / 6.0f;
+    float denom  = fn * sum_i2 - sum_i * sum_i;
+
+    if (fabsf(denom) < 1e-6f) return 0.0f;
+
+    return (fn * sum_iy - sum_i * sum_y) / denom;
+}
+
+/* Compute variance: E[x²] - E[x]². */
+static float win_variance(const float *buf, uint16_t n)
+{
+    float sum   = 0.0f;
+    float sum_sq = 0.0f;
+    for (uint16_t i = 0; i < n; i++) {
+        sum    += buf[i];
+        sum_sq += buf[i] * buf[i];
+    }
+    float mean = sum / (float)n;
+    return sum_sq / (float)n - mean * mean;
+}
+
+void ml_features_update(ml_window_t *w,
+                        int16_t fsr_raw,
+                        float tilt_x, float tilt_y,
+                        const imu_raw_t *imu,
+                        ml_features_t *out)
+{
+    /* Compute instantaneous derived values. */
+    float ax = (float)imu->accel_x * IMU_ACCEL_SCALE_G;
+    float ay = (float)imu->accel_y * IMU_ACCEL_SCALE_G;
+    float az = (float)imu->accel_z * IMU_ACCEL_SCALE_G;
+    float accel_mag = sqrtf(ax * ax + ay * ay + az * az);
+
+    float gx = (float)imu->gyro_x * IMU_GYRO_SCALE_DPS;
+    float gy = (float)imu->gyro_y * IMU_GYRO_SCALE_DPS;
+    float gz = (float)imu->gyro_z * IMU_GYRO_SCALE_DPS;
+    float gyro_mag = sqrtf(gx * gx + gy * gy + gz * gz);
+
+    /* Push into circular buffers. */
+    w->buf_fsr[w->head]       = (float)fsr_raw;
+    w->buf_tilt_x[w->head]    = tilt_x;
+    w->buf_accel_mag[w->head] = accel_mag;
+    w->buf_gyro_mag[w->head]  = gyro_mag;
+
+    w->head = (w->head + 1) % ML_WINDOW_SIZE;
+    if (w->count < ML_WINDOW_SIZE) {
+        w->count++;
+    }
+
+    /* Number of valid samples in the window. */
+    uint16_t n = w->count;
+
+    /* The oldest sample index (start of the window). When the buffer is
+     * full, this is w->head (the slot we just overwrote was the oldest).
+     * When not full, it's always 0. */
+    uint16_t oldest = (n < ML_WINDOW_SIZE) ? 0 : w->head;
+
+    /* Feature vector. */
+    out->v[0] = (float)fsr_raw;            /* fsr_raw */
+    out->v[1] = tilt_x;                    /* tilt_x_deg */
+    out->v[2] = tilt_y;                    /* tilt_y_deg */
+    out->v[3] = accel_mag;                 /* accel_mag */
+    out->v[4] = win_mean(w->buf_fsr, n);   /* fsr_mean */
+    out->v[5] = win_slope(w->buf_fsr, oldest, n);      /* fsr_slope */
+    out->v[6] = win_slope(w->buf_tilt_x, oldest, n);   /* tilt_x_slope */
+    out->v[7] = win_variance(w->buf_accel_mag, n);      /* accel_var */
+    out->v[8] = win_mean(w->buf_gyro_mag, n);           /* gyro_mag_mean */
+}
+
+bool ml_features_valid(const ml_window_t *w, const ml_features_t *feat)
+{
+    /* Window must be full before we trust temporal features. */
+    if (w->count < ML_WINDOW_SIZE) return false;
+
+    /* Accel magnitude sanity: normal range is ~0.8g to ~1.2g at rest.
+     * Allow 0.3g to 3.0g to cover dynamic motion. Outside this range
+     * means sensor error or free-fall — don't trigger. */
+    float amag = feat->v[3];
+    if (amag < 0.3f || amag > 3.0f) return false;
+
+    return true;
+}

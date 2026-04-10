@@ -31,7 +31,11 @@
 / Functions and Buffer Configurations
 /-----------------------------------------------------------------------------*/
 
-#define _FS_TINY             0      /* 0:Normal or 1:Tiny */
+#define _FS_TINY             1      /* 0:Normal or 1:Tiny */
+/* Tiny mode: FIL objects share the FATFS sector buffer instead of
+ * each having their own ~4KB buffer. Reduces FIL from 4140B to ~44B
+ * and cuts f_open stack usage drastically. Trade-off: only one file
+ * can be accessed at a time (fine for our single-writer logging). */
 /* This option switches tiny buffer configuration. (0:Normal or 1:Tiny)
 /  At the tiny configuration, size of the file object (FIL) is reduced _MAX_SS
 /  bytes. Instead of private sector buffer eliminated from the file object,
@@ -231,7 +235,10 @@
 /      can be opened simultaneously under file lock control. Note that the file
 /      lock feature is independent of re-entrancy. */
 
-#define _FS_REENTRANT    1  /* 0:Disable or 1:Enable */
+#define _FS_REENTRANT    0  /* 0:Disable or 1:Enable */
+/* Disabled: only T_ML accesses SD card, no reentrancy needed.
+ * With _FS_REENTRANT=1, osSemaphoreWait blocks forever — likely
+ * a CMSIS-OS v1 / FreeRTOS semaphore interop issue. */
 #define _FS_TIMEOUT      1000 /* Timeout period in unit of time ticks */
 #define _SYNC_t          osSemaphoreId
 /* The _FS_REENTRANT option switches the re-entrancy (thread safe) of the FatFs

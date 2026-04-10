@@ -33,7 +33,7 @@
  * after measuring uxTaskGetStackHighWaterMark in Phase 6. */
 #define STK_T_STATE_WORDS   (384 / 4)
 #define STK_T_PID_WORDS     (512 / 4)
-#define STK_T_ML_WORDS      (1024 / 4)
+#define STK_T_ML_WORDS      (2048 / 4)
 #define STK_T_LOGGER_WORDS  (512 / 4)
 
 /* Task periods (ms). All application tasks run at 20 Hz. The 25 ms offset on

@@ -96,7 +96,34 @@ void NMI_Handler(void)
 void HardFault_Handler(void)
 {
   /* USER CODE BEGIN HardFault_IRQn 0 */
-
+  /* Capture fault registers. Global so GDB can read them by name.
+   * HardFault_Handler loops forever (while(1) below), so the values
+   * are readable any time GDB connects after the fault. */
+  /* Capture fault context. g_hf[6..12] = stacked R0-R3, R12, LR, PC, xPSR */
+  extern volatile uint32_t g_hf[13];
+  g_hf[0] = SCB->CFSR;
+  g_hf[1] = SCB->HFSR;
+  g_hf[2] = SCB->MMFAR;
+  g_hf[3] = SCB->BFAR;
+  { register uint32_t lr_val __asm("lr"); g_hf[4] = lr_val; }
+  /* Get the stacked frame pointer (PSP or MSP based on EXC_RETURN) */
+  {
+      uint32_t *sp;
+      if (g_hf[4] & 0x4) {
+          sp = (uint32_t *)__get_PSP();
+      } else {
+          sp = (uint32_t *)__get_MSP();
+      }
+      /* Stacked: R0, R1, R2, R3, R12, LR, PC, xPSR */
+      g_hf[5]  = sp[0];  /* R0 */
+      g_hf[6]  = sp[1];  /* R1 */
+      g_hf[7]  = sp[4];  /* R12 */
+      g_hf[8]  = sp[5];  /* stacked LR */
+      g_hf[9]  = sp[6];  /* stacked PC — the faulting instruction! */
+      g_hf[10] = sp[7];  /* xPSR */
+      g_hf[11] = (uint32_t)sp;  /* SP at fault */
+      g_hf[12] = 0xDEADBEEF;
+  }
   /* USER CODE END HardFault_IRQn 0 */
   while (1)
   {

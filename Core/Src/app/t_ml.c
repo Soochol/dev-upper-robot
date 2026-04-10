@@ -33,6 +33,9 @@
 #include "app/features.h"
 #include "app/trigger.h"
 #include "app/rtt_log.h"
+#if DATA_COLLECT_MODE
+#include "app/sd_logger.h"
+#endif
 
 void t_ml_run(void *arg)
 {
@@ -84,6 +87,22 @@ void t_ml_run(void *arg)
     tilt_state_t tilt;
     tilt_state_init(&tilt);
 
+    /* ML feature extraction — sliding window state (static to keep it
+     * off the task stack; ~360 bytes for ML_WINDOW_SIZE=20). */
+    static ml_window_t ml_win;
+    ml_window_init(&ml_win);
+
+#if DATA_COLLECT_MODE
+    /* SD card data collection mode. Init the logger after sensor init
+     * so we have a stable system before writing files. */
+    bool sd_ok = sd_logger_init();
+    if (sd_ok) {
+        rtt_log_str("[t_ml] SD logger ready");
+    } else {
+        rtt_log_str("[t_ml] SD logger FAILED — collecting via RTT only");
+    }
+#endif
+
     TickType_t next_wake = xTaskGetTickCount();
     uint32_t   tick = 0;
 
@@ -117,7 +136,27 @@ void t_ml_run(void *arg)
             .imu_tilt_y_deg = tilt_y,
         };
 
-        /* ---- 3. Evaluate trigger ---- */
+        /* Prove T_ML is alive — readable via GDB. */
+        { extern volatile uint32_t sd_dbg_tick; sd_dbg_tick = tick; }
+
+        /* ---- 3a. ML feature extraction (sliding window) ---- */
+        ml_features_t ml_feat;
+        ml_features_update(&ml_win, fsr_raw, tilt_x, tilt_y,
+                           &imu, &ml_feat);
+
+#if DATA_COLLECT_MODE
+        /* ---- 3b. SD card logging (every tick = 20 Hz) ---- */
+        if (sd_ok) {
+            uint32_t ts_ms = (uint32_t)(xTaskGetTickCount()
+                             * portTICK_PERIOD_MS);
+            sd_logger_write_row(ts_ms, fsr_raw,
+                                imu.accel_x, imu.accel_y, imu.accel_z,
+                                imu.gyro_x, imu.gyro_y, imu.gyro_z,
+                                tilt_x, tilt_y);
+        }
+#endif
+
+        /* ---- 3c. Evaluate trigger ---- */
         fsm_state_t cur_state = (fsm_state_t)g_fsm_state;
         uint8_t event = trigger_eval(&snap, cur_state);
 

@@ -50,7 +50,7 @@
 
 #define SD_PRESENT               ((uint8_t)0x01)
 #define SD_NOT_PRESENT           ((uint8_t)0x00)
-#define SD_DATATIMEOUT           ((uint32_t)100000000)
+#define SD_DATATIMEOUT           ((uint32_t)100000)  /* ~12ms @ 8MHz */
 
 #ifdef OLD_API
 /* kept to avoid issue when migrating old projects. */

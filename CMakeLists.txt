@@ -70,6 +70,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Core/Src/app/trigger.c
     Core/Src/app/trigger_rule.c
     Core/Src/app/trigger_ml.c
+    Core/Src/app/sd_logger.c
 
     # Feature extraction: IMU tilt with adaptive LPF.
     Core/Src/app/features.c
