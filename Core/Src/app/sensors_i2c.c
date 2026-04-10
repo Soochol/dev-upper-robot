@@ -111,6 +111,110 @@ HAL_StatusTypeDef sensors_i2c_init(I2C_HandleTypeDef *hi2c)
     return (st1 == HAL_OK && st2 == HAL_OK) ? HAL_OK : HAL_ERROR;
 }
 
+/* ====================================================================
+ * ICM42670P IMU
+ * ==================================================================== */
+
+HAL_StatusTypeDef icm42670p_init(I2C_HandleTypeDef *hi2c)
+{
+    uint8_t who = 0;
+    HAL_StatusTypeDef st = HAL_I2C_Mem_Read(hi2c,
+                                            IMU_I2C_ADDR_7B << 1,
+                                            ICM42670P_REG_WHO_AM_I,
+                                            I2C_MEMADD_SIZE_8BIT,
+                                            &who, 1,
+                                            TBP_HAL_TIMEOUT_MS);
+    if (st != HAL_OK) {
+        rtt_log_str("[imu] init: WHO_AM_I read failed");
+        return st;
+    }
+    if (who != ICM42670P_WHO_AM_I_VALUE) {
+        rtt_log_kv_hex("[imu] init: unexpected WHO_AM_I=", who);
+        return HAL_ERROR;
+    }
+    rtt_log_kv_hex("[imu] init: WHO_AM_I ok=", who);
+
+    uint8_t pwr = ICM42670P_PWR_MGMT0_ON;
+    st = HAL_I2C_Mem_Write(hi2c,
+                           IMU_I2C_ADDR_7B << 1,
+                           ICM42670P_REG_PWR_MGMT0,
+                           I2C_MEMADD_SIZE_8BIT,
+                           &pwr, 1,
+                           TBP_HAL_TIMEOUT_MS);
+    if (st != HAL_OK) {
+        rtt_log_str("[imu] init: PWR_MGMT0 write failed");
+        return st;
+    }
+    rtt_log_str("[imu] init: accel+gyro enabled");
+    return HAL_OK;
+}
+
+HAL_StatusTypeDef icm42670p_read(I2C_HandleTypeDef *hi2c, imu_raw_t *out)
+{
+    uint8_t buf[ICM42670P_DATA_BURST_LEN];
+    HAL_StatusTypeDef st = HAL_I2C_Mem_Read(hi2c,
+                                            IMU_I2C_ADDR_7B << 1,
+                                            ICM42670P_REG_ACCEL_DATA_X1,
+                                            I2C_MEMADD_SIZE_8BIT,
+                                            buf, ICM42670P_DATA_BURST_LEN,
+                                            TBP_HAL_TIMEOUT_MS);
+    if (st != HAL_OK) return st;
+
+    /* ICM42670P register data is big-endian: high byte first. */
+    out->accel_x = (int16_t)((uint16_t)buf[0]  << 8 | buf[1]);
+    out->accel_y = (int16_t)((uint16_t)buf[2]  << 8 | buf[3]);
+    out->accel_z = (int16_t)((uint16_t)buf[4]  << 8 | buf[5]);
+    out->gyro_x  = (int16_t)((uint16_t)buf[6]  << 8 | buf[7]);
+    out->gyro_y  = (int16_t)((uint16_t)buf[8]  << 8 | buf[9]);
+    out->gyro_z  = (int16_t)((uint16_t)buf[10] << 8 | buf[11]);
+    return HAL_OK;
+}
+
+/* ====================================================================
+ * ADS1115 ADC (FSR front-end)
+ * ==================================================================== */
+
+HAL_StatusTypeDef ads1115_init(I2C_HandleTypeDef *hi2c)
+{
+    /* Write config register once to start continuous conversions on AIN0.
+     * The config register is big-endian on the wire. */
+    uint8_t cfg[2] = {
+        (uint8_t)(ADS1115_CONFIG_AIN0_CONT >> 8),
+        (uint8_t)(ADS1115_CONFIG_AIN0_CONT & 0xFF),
+    };
+    HAL_StatusTypeDef st = HAL_I2C_Mem_Write(hi2c,
+                                             ADS1115_I2C_ADDR_7B << 1,
+                                             ADS1115_REG_CONFIG,
+                                             I2C_MEMADD_SIZE_8BIT,
+                                             cfg, 2,
+                                             TBP_HAL_TIMEOUT_MS);
+    if (st == HAL_OK) {
+        rtt_log_str("[fsr] init: ADS1115 continuous mode started");
+    } else {
+        rtt_log_str("[fsr] init: ADS1115 config write failed");
+    }
+    return st;
+}
+
+HAL_StatusTypeDef ads1115_read(I2C_HandleTypeDef *hi2c, int16_t *out_raw)
+{
+    uint8_t buf[2];
+    HAL_StatusTypeDef st = HAL_I2C_Mem_Read(hi2c,
+                                            ADS1115_I2C_ADDR_7B << 1,
+                                            ADS1115_REG_CONVERSION,
+                                            I2C_MEMADD_SIZE_8BIT,
+                                            buf, 2,
+                                            TBP_HAL_TIMEOUT_MS);
+    if (st != HAL_OK) return st;
+    /* ADS1115 conversion register is big-endian. */
+    *out_raw = (int16_t)((uint16_t)buf[0] << 8 | buf[1]);
+    return HAL_OK;
+}
+
+/* ====================================================================
+ * TBP-H70 IR temperature
+ * ==================================================================== */
+
 HAL_StatusTypeDef tbp_h70_read_target_c(I2C_HandleTypeDef *hi2c,
                                         uint8_t addr_7b,
                                         float *out_celsius)

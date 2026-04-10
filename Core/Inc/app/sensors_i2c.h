@@ -87,4 +87,55 @@ HAL_StatusTypeDef tbp_h70_read_target_c(I2C_HandleTypeDef *hi2c,
                                         uint8_t addr_7b,
                                         float *out_celsius);
 
+/* ========================================================================
+ * ICM42670P 6-axis IMU
+ * ======================================================================== */
+
+/**
+ * @brief  Raw 6-axis data from one IMU burst read (12 bytes, big-endian).
+ *         Values are in raw signed 16-bit ADC codes — not yet converted
+ *         to g or dps. Feature extraction layer does the conversion.
+ */
+typedef struct {
+    int16_t accel_x;
+    int16_t accel_y;
+    int16_t accel_z;
+    int16_t gyro_x;
+    int16_t gyro_y;
+    int16_t gyro_z;
+} imu_raw_t;
+
+/**
+ * @brief  Initialize the ICM42670P. Reads WHO_AM_I for sanity, then
+ *         enables accel + gyro in low-noise mode.
+ * @return HAL_OK if WHO_AM_I matches and PWR write succeeds.
+ */
+HAL_StatusTypeDef icm42670p_init(I2C_HandleTypeDef *hi2c);
+
+/**
+ * @brief  Burst-read 12 bytes of accel + gyro data.
+ *         big-endian → host-endian conversion is done internally.
+ * @return HAL_OK on success.
+ */
+HAL_StatusTypeDef icm42670p_read(I2C_HandleTypeDef *hi2c, imu_raw_t *out);
+
+/* ========================================================================
+ * ADS1115 16-bit ADC (FSR front-end)
+ * ======================================================================== */
+
+/**
+ * @brief  Configure ADS1115 for continuous conversion on AIN0.
+ *         Writes the config register once. Subsequent reads are just
+ *         conversion register reads.
+ * @return HAL_OK on success.
+ */
+HAL_StatusTypeDef ads1115_init(I2C_HandleTypeDef *hi2c);
+
+/**
+ * @brief  Read the latest conversion result.
+ * @param  out_raw  signed 16-bit ADC value (positive = upward pressure).
+ * @return HAL_OK on success.
+ */
+HAL_StatusTypeDef ads1115_read(I2C_HandleTypeDef *hi2c, int16_t *out_raw);
+
 #endif /* APP_SENSORS_I2C_H */

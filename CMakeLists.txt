@@ -65,6 +65,11 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Control loop (Phase 3b): PID controller and TIM1/GPIO actuators.
     Core/Src/app/pid.c
     Core/Src/app/actuators.c
+
+    # Trigger providers (Phase 4): strategy pattern + rule/ML providers.
+    Core/Src/app/trigger.c
+    Core/Src/app/trigger_rule.c
+    Core/Src/app/trigger_ml.c
 )
 
 # Add include paths

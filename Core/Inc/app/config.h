@@ -73,13 +73,13 @@
  * this long, force heater to 0 (T_STATE has likely died). */
 #define PID_CMD_WATCHDOG_MS         2000
 
-/* Phase 2 auto-trigger emulator. Phase 2 has no real trigger source yet
- * (T_ML is still a stub through Phase 4). To exercise the FSM during
- * bring-up, defaultTask emits TRIGGER_FORCE_UP / TRIGGER_FORCE_DOWN
- * alternately every PHASE2_AUTO_TRIGGER_PERIOD_MS milliseconds. Set the
- * macro to 0 in Phase 4 once T_ML starts publishing real triggers. */
-#define PHASE2_AUTO_TRIGGER             1
-#define PHASE2_AUTO_TRIGGER_PERIOD_MS   10000   /* 10 s alternation */
+/* Phase 2 auto-trigger emulator. Was on through Phase 3 to exercise the
+ * FSM without a real sensor source. Disabled in Phase 4 because T_ML now
+ * publishes real triggers from the FSR — having both sources active would
+ * race for q_trigger_to_state. Re-enable temporarily if you need to test
+ * the FSM in isolation again. */
+#define PHASE2_AUTO_TRIGGER             0
+#define PHASE2_AUTO_TRIGGER_PERIOD_MS   10000   /* unused while disabled */
 
 /* ========================================================================
  * IR temperature sensors (Diwell TBP-H70)
@@ -129,6 +129,72 @@
 #define I2C_SCAN_ADDR_MAX           0x77
 
 /* ========================================================================
+ * ICM42670P 6-axis IMU (TDK InvenSense)
+ * ========================================================================
+ * I2C device at 0x69 (AP_AD0 pulled high). 6 data registers each for accel
+ * and gyro, accessible as a 12-byte burst read starting at ACCEL_DATA_X1.
+ *
+ * Bring-up sequence (minimal v1):
+ *   1. Read WHO_AM_I (0x75), expect 0x67. Sanity check.
+ *   2. Write PWR_MGMT0 (0x1F) to enable accel + gyro in low-noise mode.
+ *   3. Wait ~10 ms for the ramp-up.
+ *   4. From then on, burst-read 12 bytes from ACCEL_DATA_X1 (0x0B). */
+
+#define IMU_I2C_ADDR_7B             0x69
+#define ICM42670P_REG_WHO_AM_I      0x75
+#define ICM42670P_WHO_AM_I_VALUE    0x67
+#define ICM42670P_REG_PWR_MGMT0     0x1F
+/* PWR_MGMT0 value: ACCEL_LP_CLK_SEL=0, IDLE=0, GYRO_MODE=11 (Low Noise),
+ * ACCEL_MODE=11 (Low Noise). All other bits 0. */
+#define ICM42670P_PWR_MGMT0_ON      0x0F
+#define ICM42670P_REG_ACCEL_DATA_X1 0x0B  /* burst read start: 12 bytes */
+#define ICM42670P_DATA_BURST_LEN    12
+#define ICM42670P_STARTUP_DELAY_MS  10
+
+/* ========================================================================
+ * ADS1115 16-bit ADC (Texas Instruments) — used as the FSR front-end
+ * ========================================================================
+ * I2C device at 0x49 (ADDR pin tied to VDD). Single-channel continuous
+ * mode on AIN0 single-ended.
+ *
+ * Config register (0x01) value 0x4483 breakdown:
+ *   bit 15    OS = 0       (single-shot bit, ignored in continuous mode)
+ *   bit 14:12 MUX = 100    AIN0 single-ended vs GND
+ *   bit 11:9  PGA = 010    +/- 2.048 V full-scale
+ *   bit 8     MODE = 0     continuous conversion
+ *   bit 7:5   DR = 100     128 SPS
+ *   bit 4     COMP_MODE=0  traditional comparator (unused)
+ *   bit 3     COMP_POL=0   active low comparator (unused)
+ *   bit 2     COMP_LAT=0   non-latching (unused)
+ *   bit 1:0   COMP_QUE=11  disable comparator
+ * Composed: 0100_010_0_100_00011 = 0x4483 */
+
+#define ADS1115_I2C_ADDR_7B         0x49
+#define ADS1115_REG_CONVERSION      0x00
+#define ADS1115_REG_CONFIG          0x01
+#define ADS1115_CONFIG_AIN0_CONT    0x4483u
+
+/* ========================================================================
+ * Trigger thresholds (FSR + IMU)
+ * ========================================================================
+ * Phase 4 v1: rule-based trigger uses FSR only with hysteresis. The two
+ * thresholds form a dead zone — values between them leave the FSM state
+ * unchanged. Without hysteresis, FSR jitter near a single threshold would
+ * fire trigger events every cycle and the FSM would oscillate.
+ *
+ * IMU thresholds are placeholders for the Phase 4b extension when tilt
+ * becomes part of the trigger logic. trigger_rule.c does not read them yet.
+ *
+ * All values are PLACEHOLDER and must be calibrated against real hardware
+ * once the FSR contact surface is mounted. See TODO.md "Trigger threshold
+ * calibration" for the procedure. */
+
+#define FSR_THRESHOLD_UP_RAW        2000   /* TODO: calibrate (raw signed ADC) */
+#define FSR_THRESHOLD_DOWN_RAW       500   /* TODO: calibrate */
+#define IMU_TILT_UP_DEG               45   /* TODO: calibrate, Phase 4b */
+#define IMU_TILT_DOWN_DEG             10   /* TODO: calibrate, Phase 4b */
+
+/* ========================================================================
  * Trigger provider selection (compile-time, v1)
  * ======================================================================== */
 
@@ -141,13 +207,9 @@
 #define TRIGGER_SOURCE  TRIG_SRC_RULE
 #endif
 
-/* Rule-based trigger thresholds. PLACEHOLDER values — these MUST be
- * recalibrated against real hardware once FSR/IMU drivers are wired up
- * in Phase 4. Do not trust the numerical values below for production. */
-#define FSR_THRESHOLD_UP_ADC      2000   /* TODO: calibrate */
-#define FSR_THRESHOLD_DOWN_ADC     500   /* TODO: calibrate */
-#define IMU_TILT_UP_DEG             45   /* TODO: calibrate */
-#define IMU_TILT_DOWN_DEG           10   /* TODO: calibrate */
+/* (Old Phase 2 placeholders removed — now defined in the detailed
+ * "Trigger thresholds" section below the ADS1115 block, with proper
+ * hysteresis semantics and calibration notes.) */
 
 /* ========================================================================
  * PID gains (PLACEHOLDER, Phase 6 tuning)
