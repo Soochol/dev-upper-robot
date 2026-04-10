@@ -26,6 +26,12 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "SEGGER_RTT.h"
+#include "queue.h"
+#include "semphr.h"
+#include "app/config.h"
+#include "app/ipc.h"
+#include "app/fsm.h"
+#include "app/rtt_log.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -46,11 +52,50 @@
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN Variables */
 
+/* Application task handles. defaultTaskHandle (CMSIS-OS v1) is declared
+ * separately below by the CubeMX-generated code; the four application tasks
+ * use the raw FreeRTOS API (TaskHandle_t) instead. */
+TaskHandle_t h_t_state;
+TaskHandle_t h_t_pid;
+TaskHandle_t h_t_ml;
+TaskHandle_t h_t_logger;
+
+/* PI mutex for the I2C1 bus shared by T_PID (IR sensors) and T_ML
+ * (ICM42670P + ADS1115). Created with xSemaphoreCreateMutex() so priority
+ * inheritance is automatic — see plan A1 for the blocking analysis. */
+SemaphoreHandle_t mtx_i2c1;
+
+/* Mutex for the dual RTT+UART transport used by __io_putchar in main.c.
+ * Required because both the logger task and any defaultTask printf would
+ * otherwise interleave bytes on the wire. */
+SemaphoreHandle_t mtx_uart1;
+
+/* Inter-task queues. Depths come from config.h so we can resize them in
+ * one place if a particular path turns out to be a bottleneck. q_btn_evt
+ * was removed when buttons were dropped from the design (D13). */
+QueueHandle_t q_log;
+QueueHandle_t q_ctrl_to_pid;
+QueueHandle_t q_trigger_to_state;
+QueueHandle_t q_fault_req;
+
+/* Current FSM state, written only by T_STATE, read by T_PID for safety
+ * invariants and by defaultTask for the heartbeat dump. uint32_t alignment
+ * makes single-word reads atomic on Cortex-M3 — see plan A8. */
+volatile uint32_t g_fsm_state = 0;  /* FSM_SLEEPING */
+
 /* USER CODE END Variables */
 osThreadId defaultTaskHandle;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
+
+/* Application task entry points. Each lives in Core/Src/app/t_*.c. Forward
+ * declared here rather than in a separate header so adding a new task is a
+ * one-line change in this file. */
+void t_state_run (void *arg);
+void t_pid_run   (void *arg);
+void t_ml_run    (void *arg);
+void t_logger_run(void *arg);
 
 /* USER CODE END FunctionPrototypes */
 
@@ -66,11 +111,38 @@ void vApplicationStackOverflowHook(xTaskHandle xTask, signed char *pcTaskName);
 void vApplicationMallocFailedHook(void);
 
 /* USER CODE BEGIN 4 */
-__weak void vApplicationStackOverflowHook(xTaskHandle xTask, signed char *pcTaskName)
+void vApplicationStackOverflowHook(xTaskHandle xTask, signed char *pcTaskName)
 {
-   /* Run time stack overflow checking is performed if
-   configCHECK_FOR_STACK_OVERFLOW is defined to 1 or 2. This hook function is
-   called if a stack overflow is detected. */
+  /* Stack overflow is unrecoverable: the offending task may have corrupted
+   * the TCB or adjacent task stacks before this hook is called. We must NOT
+   * try to schedule any further work on this kernel state.
+   *
+   * Strategy: emit one synchronous RTT line so the failing task is visible
+   * in the debug console, then trip a hardware reset. NEVER use printf() or
+   * any FreeRTOS API here — interrupts may be in an unknown state and the
+   * heap may be corrupted. SEGGER_RTT_Write is safe because it touches a
+   * fixed memory region with no locks.
+   *
+   * Plan reference: A6.
+   */
+  (void)xTask;
+  SEGGER_RTT_Write(0, "\r\n!!! STACK OVERFLOW: ", 22);
+  if (pcTaskName != NULL) {
+    /* pcTaskName is a TCB-owned NUL-terminated string up to
+     * configMAX_TASK_NAME_LEN bytes. Walk it manually to avoid strlen. */
+    const char *p = (const char *)pcTaskName;
+    int n = 0;
+    while (n < 16 && p[n] != '\0') n++;
+    SEGGER_RTT_Write(0, p, n);
+  }
+  SEGGER_RTT_Write(0, " !!!\r\n", 6);
+
+  /* Give the debugger a chance to drain RTT before reset. Busy-wait because
+   * vTaskDelay would be unsafe at this point. */
+  for (volatile uint32_t i = 0; i < 2000000; i++) { __asm__ volatile ("nop"); }
+
+  NVIC_SystemReset();
+  for (;;) { /* unreachable */ }
 }
 /* USER CODE END 4 */
 
@@ -114,7 +186,12 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE END Init */
 
   /* USER CODE BEGIN RTOS_MUTEX */
-  /* add mutexes, ... */
+  /* PI mutex — priority inheritance is automatic with xSemaphoreCreateMutex.
+   * NEVER replace with xSemaphoreCreateBinary() — see plan A1. */
+  mtx_i2c1  = xSemaphoreCreateMutex();
+  mtx_uart1 = xSemaphoreCreateMutex();
+  configASSERT(mtx_i2c1  != NULL);
+  configASSERT(mtx_uart1 != NULL);
   /* USER CODE END RTOS_MUTEX */
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
@@ -126,7 +203,14 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE END RTOS_TIMERS */
 
   /* USER CODE BEGIN RTOS_QUEUES */
-  /* add queues, ... */
+  q_log              = xQueueCreate(Q_LOG_DEPTH,              sizeof(log_msg_t));
+  q_ctrl_to_pid      = xQueueCreate(Q_CTRL_TO_PID_DEPTH,      sizeof(ctrl_cmd_t));
+  q_trigger_to_state = xQueueCreate(Q_TRIGGER_TO_STATE_DEPTH, sizeof(trig_msg_t));
+  q_fault_req        = xQueueCreate(Q_FAULT_REQ_DEPTH,        sizeof(fault_req_t));
+  configASSERT(q_log              != NULL);
+  configASSERT(q_ctrl_to_pid      != NULL);
+  configASSERT(q_trigger_to_state != NULL);
+  configASSERT(q_fault_req        != NULL);
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
@@ -135,9 +219,28 @@ void MX_FREERTOS_Init(void) {
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
-  /* Minimal first-boot configuration: only the CubeMX-generated defaultTask
-   * runs. Application tasks are intentionally commented out until we've
-   * verified the FreeRTOS kernel + scheduler are healthy on this board. */
+  /* Application tasks (raw FreeRTOS API).
+   *
+   * Phase 1: stub bodies — each task just delays and prints heartbeat to RTT.
+   * We create them now so the IPC primitives above are exercised at boot
+   * and we can verify the scheduler handles 5 tasks (4 app + defaultTask)
+   * before piling on real driver code in later phases.
+   *
+   * Stack sizes are deliberately generous during bring-up; we shrink in
+   * Phase 6 after measuring uxTaskGetStackHighWaterMark from each task. */
+  BaseType_t ok;
+  ok = xTaskCreate(t_state_run,  "T_STATE",  STK_T_STATE_WORDS,
+                   NULL, PRIO_T_STATE,  &h_t_state);
+  configASSERT(ok == pdPASS);
+  ok = xTaskCreate(t_pid_run,    "T_PID",    STK_T_PID_WORDS,
+                   NULL, PRIO_T_PID,    &h_t_pid);
+  configASSERT(ok == pdPASS);
+  ok = xTaskCreate(t_ml_run,     "T_ML",     STK_T_ML_WORDS,
+                   NULL, PRIO_T_ML,     &h_t_ml);
+  configASSERT(ok == pdPASS);
+  ok = xTaskCreate(t_logger_run, "T_LOGGER", STK_T_LOGGER_WORDS,
+                   NULL, PRIO_T_LOGGER, &h_t_logger);
+  configASSERT(ok == pdPASS);
   /* USER CODE END RTOS_THREADS */
 
 }
@@ -152,18 +255,57 @@ void MX_FREERTOS_Init(void) {
 void StartDefaultTask(void const * argument)
 {
   /* USER CODE BEGIN StartDefaultTask */
-  /* Minimal heartbeat: RTT-only log, no printf(), no float, no heap access.
-   * We call SEGGER_RTT_Write directly to avoid the newlib stdio path and
-   * any mutex/lock overhead. If this loop does not appear in the RTT
-   * console, the FreeRTOS scheduler itself is broken on the current
-   * build — look at FreeRTOSConfig, NVIC priorities, or heap layout
-   * before adding any application logic on top. */
+  /* 1 Hz health beacon. Reports:
+   *   - tick counter (proves scheduler is alive)
+   *   - free heap (xPortGetFreeHeapSize, drops if any task leaks)
+   *   - lowest free heap watermark (xPortGetMinimumEverFreeHeapSize)
+   *   - current FSM state from g_fsm_state (atomic 32-bit read)
+   *
+   * In Phase 2, this task also doubles as the auto-trigger emulator
+   * (PHASE2_AUTO_TRIGGER) — every PHASE2_AUTO_TRIGGER_PERIOD_MS we publish
+   * an alternating UP/DOWN trigger to q_trigger_to_state so the FSM
+   * cycles even though T_ML still has no real trigger source. Removed
+   * by setting PHASE2_AUTO_TRIGGER to 0 in Phase 4.
+   *
+   * Uses rtt_log_hb (printf-free) which is non-blocking and safe from any
+   * task. Avoid newlib printf here so this loop never blocks on UART
+   * transmit or grabs mtx_uart1 — defaultTask is the canary that proves
+   * the rest of the system is healthy, so it must not depend on the rest
+   * of the system being healthy. */
   uint32_t tick = 0;
+#if PHASE2_AUTO_TRIGGER
+  /* Period in heartbeat ticks. heartbeat is 1 Hz and PHASE2_AUTO_TRIGGER_PERIOD_MS
+   * is 10000, so we fire on every 10th tick. */
+  const uint32_t auto_trig_every = PHASE2_AUTO_TRIGGER_PERIOD_MS / PERIOD_HEARTBEAT_MS;
+  bool next_trig_is_up = true;  /* first trigger lifts FORCE_DOWN → FORCE_UP */
+#endif
+
   for (;;)
   {
-    SEGGER_RTT_Write(0, "hb\r\n", 4);
     tick++;
-    vTaskDelay(pdMS_TO_TICKS(1000));
+    rtt_log_hb("[hb]",
+        " t=",    tick,
+        " free=", (uint32_t)xPortGetFreeHeapSize(),
+        " lo=",   (uint32_t)xPortGetMinimumEverFreeHeapSize(),
+        " fsm=",  g_fsm_state);
+
+#if PHASE2_AUTO_TRIGGER
+    if (auto_trig_every > 0 && (tick % auto_trig_every) == 0) {
+      trig_msg_t tmsg = {
+        .event = (uint8_t)(next_trig_is_up
+                           ? FSM_EVT_TRIGGER_FORCE_UP
+                           : FSM_EVT_TRIGGER_FORCE_DOWN),
+        .pad   = {0, 0, 0},
+      };
+      (void)xQueueSendToBack(q_trigger_to_state, &tmsg, 0);
+      rtt_log_str(next_trig_is_up
+                  ? "[hb] auto-trig: TRIG_UP"
+                  : "[hb] auto-trig: TRIG_DOWN");
+      next_trig_is_up = !next_trig_is_up;
+    }
+#endif
+
+    vTaskDelay(pdMS_TO_TICKS(PERIOD_HEARTBEAT_MS));
   }
   /* USER CODE END StartDefaultTask */
 }

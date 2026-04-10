@@ -241,10 +241,18 @@ void SystemClock_Config(void)
  * @brief  Pre-main RTT initializer (constructor).
  *
  * Runs from __libc_init_array() BEFORE main() is entered. This ensures that
- * the _SEGGER_RTT control block at 0x20000524 has its magic string and ring
- * buffer pointers set up by the time the debugger halts at main(), so
- * Cortex-Debug's "monitor rtt setup" succeeds on the very first try and the
- * user does not need to press F5 twice to get logs flowing.
+ * the _SEGGER_RTT control block has its magic string and ring buffer
+ * pointers set up by the time the debugger halts at main(), so Cortex-Debug's
+ * "monitor rtt setup" succeeds on the very first try and the user does not
+ * need to press F5 twice to get logs flowing.
+ *
+ * Note: the control block's absolute address depends on the current .bss
+ * layout and changes whenever new global/static variables are added. Do
+ * NOT hardcode the address in launch.json — use `monitor rtt setup
+ * 0x20000000 0xC000 "SEGGER RTT"` which asks OpenOCD to scan the entire
+ * STM32F103RC RAM (48 KB) for the SEGGER magic marker and locate the
+ * control block dynamically. Query the current address with:
+ *     arm-none-eabi-nm build/Debug/PSP.elf | grep _SEGGER_RTT
  *
  * Mechanism: GCC __attribute__((constructor)) registers this function in the
  * .init_array section. The startup_stm32f103xe.s Reset_Handler calls

@@ -46,11 +46,26 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # SEGGER RTT — high-speed logging over SWD, used by __io_putchar in main.c
     Core/Third_Party/SEGGER_RTT/SEGGER_RTT.c
+
+    # Application tasks (Phase 1: stub bodies). Listed explicitly so a new
+    # file added here also triggers a CMake reconfigure on next build.
+    Core/Src/app/t_state.c
+    Core/Src/app/t_pid.c
+    Core/Src/app/t_ml.c
+    Core/Src/app/t_logger.c
+    Core/Src/app/rtt_log.c
+
+    # FSM (Phase 2): pure transition logic + state lookup table.
+    Core/Src/app/fsm.c
+    Core/Src/app/state_table.c
 )
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     Core/Third_Party/SEGGER_RTT
+    # Application headers under Core/Inc/app are referenced as "app/foo.h"
+    # so we add Core/Inc as the search root.
+    Core/Inc
 )
 
 # Add project symbols (macros)
