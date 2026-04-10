@@ -35,6 +35,7 @@
 #include "app/rtt_log.h"
 #if DATA_COLLECT_MODE
 #include "app/sd_logger.h"
+#include "main.h"             /* IN_FUNC_SW1_Pin/Port, SW2 */
 #endif
 
 void t_ml_run(void *arg)
@@ -93,14 +94,15 @@ void t_ml_run(void *arg)
     ml_window_init(&ml_win);
 
 #if DATA_COLLECT_MODE
-    /* SD card data collection mode. Init the logger after sensor init
-     * so we have a stable system before writing files. */
+    /* SD card init — mount and scan for next file number.
+     * Recording starts when user presses FUNC_SW1. */
     bool sd_ok = sd_logger_init();
     if (sd_ok) {
-        rtt_log_str("[t_ml] SD logger ready");
+        rtt_log_str("[t_ml] SD mounted -- press SW1 to record");
     } else {
-        rtt_log_str("[t_ml] SD logger FAILED — collecting via RTT only");
+        rtt_log_str("[t_ml] SD mount FAILED");
     }
+    uint32_t btn_debounce = 0;
 #endif
 
     TickType_t next_wake = xTaskGetTickCount();
@@ -127,31 +129,52 @@ void t_ml_run(void *arg)
             tilt_update(&tilt, &imu, &tilt_x, &tilt_y);
         }
 
-        /* ---- 3. Pack snapshot ---- */
+        /* ---- 3. ML feature extraction (sliding window) ---- */
+        ml_features_t ml_feat;
+        ml_features_update(&ml_win, fsr_raw, tilt_x, tilt_y,
+                           &imu, &ml_feat);
+
+        /* ---- 3a. Pack snapshot ---- */
         sensor_snapshot_t snap = {
             .fsr_raw        = fsr_raw,
             .imu            = imu,
             .imu_tilt_x_deg = tilt_x,
             .imu_tilt_y_deg = tilt_y,
+            .ml_feat        = &ml_feat,
         };
 
         /* Prove T_ML is alive — readable via GDB. */
         { extern volatile uint32_t sd_dbg_tick; sd_dbg_tick = tick; }
 
-        /* ---- 3a. ML feature extraction (sliding window) ---- */
-        ml_features_t ml_feat;
-        ml_features_update(&ml_win, fsr_raw, tilt_x, tilt_y,
-                           &imu, &ml_feat);
-
 #if DATA_COLLECT_MODE
-        /* ---- 3b. SD card logging (every tick = 20 Hz) ---- */
+        /* ---- 3b. Button-controlled SD recording ---- */
         if (sd_ok) {
-            uint32_t ts_ms = (uint32_t)(xTaskGetTickCount()
-                             * portTICK_PERIOD_MS);
-            sd_logger_write_row(ts_ms, fsr_raw,
-                                imu.accel_x, imu.accel_y, imu.accel_z,
-                                imu.gyro_x, imu.gyro_y, imu.gyro_z,
-                                tilt_x, tilt_y);
+            bool sw1 = (HAL_GPIO_ReadPin(IN_FUNC_SW1_GPIO_Port,
+                                         IN_FUNC_SW1_Pin) == GPIO_PIN_RESET);
+            bool sw2 = (HAL_GPIO_ReadPin(IN_FUNC_SW2_GPIO_Port,
+                                         IN_FUNC_SW2_Pin) == GPIO_PIN_RESET);
+
+            if (sw1 && !sd_logger_is_recording()
+                    && (tick - btn_debounce) > 4) {
+                sd_logger_start();
+                btn_debounce = tick;
+            }
+            if (sw2 && sd_logger_is_recording()
+                    && (tick - btn_debounce) > 4) {
+                sd_logger_stop();
+                sd_logger_dump_rtt();
+                btn_debounce = tick;
+            }
+
+            /* Write sensor row if recording. */
+            if (sd_logger_is_recording()) {
+                uint32_t ts_ms = (uint32_t)(xTaskGetTickCount()
+                                 * portTICK_PERIOD_MS);
+                sd_logger_write_row(ts_ms, fsr_raw,
+                                    imu.accel_x, imu.accel_y, imu.accel_z,
+                                    imu.gyro_x, imu.gyro_y, imu.gyro_z,
+                                    tilt_x, tilt_y);
+            }
         }
 #endif
 

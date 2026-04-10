@@ -2,18 +2,17 @@
  * @file    sd_logger.h
  * @brief   SD card CSV logger for ML training data collection.
  *
- * Writes raw sensor snapshots to a CSV file on the SD card via FatFS.
- * Enabled only when DATA_COLLECT_MODE is 1 in config.h.
+ * Button-controlled recording with auto-incrementing filenames:
+ *   ml_000.csv, ml_001.csv, ...
  *
- * Usage from T_ML:
- *   1. Call sd_logger_init() once at task start.
- *   2. Call sd_logger_write_row() each tick with raw sensor values.
- *   3. Call sd_logger_flush() periodically or at shutdown.
+ * Lifecycle:
+ *   1. sd_logger_init()       — mount SD, scan for next file number
+ *   2. sd_logger_start()      — open new file, begin recording
+ *   3. sd_logger_write_row()  — append sensor data (no-op if not recording)
+ *   4. sd_logger_stop()       — flush + close file
+ *   5. sd_logger_dump_rtt()   — stream last file over RTT to host PC
  *
- * Output file: ml_data.csv (fixed name, overwritten each boot).
- * Write strategy: rows accumulate in a 512-byte RAM buffer (one SDIO
- * block). When the buffer is full, sd_logger_write_row() triggers an
- * f_write() + f_sync(). This batches writes to minimize FatFS overhead.
+ * Step 2-5 can repeat for multiple sessions without remounting.
  */
 
 #ifndef APP_SD_LOGGER_H
@@ -23,28 +22,41 @@
 #include <stdbool.h>
 
 /**
- * @brief  Mount SD card and open/create ml_data.csv for logging.
+ * @brief  Mount SD card and scan for the next available file number.
  *
- * Speeds up SDIO clock after mount, retries f_open once on first
- * failure (some cards need a warm-up write). Writes CSV header.
+ * Speeds up SDIO clock after mount. Does NOT open a file — call
+ * sd_logger_start() to begin recording.
  *
- * @return true on success, false if SD mount or file open fails.
- *         On failure, subsequent write_row calls are no-ops.
+ * @return true on success, false if mount fails.
  */
 bool sd_logger_init(void);
 
 /**
+ * @brief  Open a new CSV file (ml_NNN.csv) and begin recording.
+ *
+ * Auto-increments the file number. Writes CSV header.
+ * No-op if already recording or if init failed.
+ *
+ * @return true on success, false if file open fails.
+ */
+bool sd_logger_start(void);
+
+/**
+ * @brief  Stop recording — flush buffer, close file.
+ *
+ * After this call, write_row() becomes a no-op until the next start().
+ */
+void sd_logger_stop(void);
+
+/**
+ * @brief  True if currently recording (between start and stop).
+ */
+bool sd_logger_is_recording(void);
+
+/**
  * @brief  Append one CSV row of raw sensor data to the write buffer.
  *
- * If the buffer is full after formatting, triggers an f_write()+f_sync().
- * The flush costs ~2 ms (DMA-based SDIO write).
- *
- * @param  timestamp_ms  system tick in milliseconds
- * @param  fsr_raw       ADS1115 raw reading (signed)
- * @param  ax,ay,az      ICM42670P accel raw (signed, +-2g scale)
- * @param  gx,gy,gz      ICM42670P gyro raw (signed, +-2000dps scale)
- * @param  tilt_x        filtered tilt X in degrees (relative to boot)
- * @param  tilt_y        filtered tilt Y in degrees
+ * No-op if not recording. If the buffer is full, triggers f_write+f_sync.
  */
 void sd_logger_write_row(uint32_t timestamp_ms,
                          int16_t fsr_raw,
@@ -54,8 +66,21 @@ void sd_logger_write_row(uint32_t timestamp_ms,
 
 /**
  * @brief  Force-flush the write buffer to SD and sync.
- *         Call before removing the SD card or at shutdown.
  */
 void sd_logger_flush(void);
+
+/**
+ * @brief  Stream the last recorded file over RTT channel 0.
+ *
+ * Reads the file in 256-byte chunks and writes to SEGGER_RTT.
+ * Framing:
+ *   [sd:dump:start:<filename>]\n
+ *   ... CSV data ...
+ *   [sd:dump:end]\n
+ *
+ * Handles RTT backpressure with vTaskDelay(1) when the buffer is full.
+ * Call from a FreeRTOS task context (not ISR).
+ */
+void sd_logger_dump_rtt(void);
 
 #endif /* APP_SD_LOGGER_H */

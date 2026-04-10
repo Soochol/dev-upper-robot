@@ -70,6 +70,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Core/Src/app/trigger.c
     Core/Src/app/trigger_rule.c
     Core/Src/app/trigger_ml.c
+    Core/Src/app/model_rf.c
     Core/Src/app/sd_logger.c
 
     # Feature extraction: IMU tilt with adaptive LPF.
@@ -87,9 +88,17 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     Core/Inc
 )
 
+# ML workflow build-time configuration.
+# Usage: cmake --preset Debug -DDATA_COLLECT=ON   (SD logging + button control)
+#        cmake --preset Debug -DML_TRIGGER=ON      (ML inference instead of rule)
+option(DATA_COLLECT "Enable SD card CSV logging with button control" OFF)
+option(ML_TRIGGER   "Use ML trigger provider instead of rule-based"  OFF)
+
 # Add project symbols (macros)
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
-    # Add user defined symbols
+    $<$<BOOL:${DATA_COLLECT}>:DATA_COLLECT_MODE=1>
+    $<$<NOT:$<BOOL:${DATA_COLLECT}>>:DATA_COLLECT_MODE=0>
+    $<$<BOOL:${ML_TRIGGER}>:TRIGGER_SOURCE=1>
 )
 
 # Remove wrong libob.a library dependency when using cpp files

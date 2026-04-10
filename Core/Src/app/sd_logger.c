@@ -1,20 +1,17 @@
 /**
  * @file    sd_logger.c
- * @brief   SD card CSV logger for ML training data collection.
+ * @brief   SD card CSV logger — button-controlled, auto-incrementing files.
  *
- * Writes one CSV row per T_ML tick (20 Hz) containing raw sensor values
- * and derived tilt angles. Data is buffered in a 512-byte RAM buffer
- * and flushed to the SD card when the buffer is full.
+ * File naming: ml_000.csv, ml_001.csv, ... Each sd_logger_start() opens
+ * the next number. The index is determined by scanning the root directory
+ * at init time, so it survives power cycles.
  *
- * File naming: ml_000.csv, ml_001.csv, ... Auto-increments on each
- * power cycle / init call to avoid overwriting previous sessions.
+ * After sd_logger_stop(), sd_logger_dump_rtt() streams the file over
+ * SEGGER RTT so the host can capture it without removing the SD card.
  *
  * CSV format (header + data):
- *   ms,fsr,ax,ay,az,gx,gy,gz,tx,ty
+ *   ms,fsr,ax,ay,az,gx,gy,gz,tx100,ty100
  *   12340,1523,1024,-234,16100,12,-5,3,1520,-210
- *
- * Tilt values are stored as fixed-point (×100) to avoid float formatting
- * on the MCU. The PC-side Python script divides by 100 to recover degrees.
  */
 
 #include "app/sd_logger.h"
@@ -22,32 +19,36 @@
 #include "app/rtt_log.h"
 #include "fatfs.h"
 #include "bsp_driver_sd.h"
+#include "SEGGER_RTT.h"
+#include "FreeRTOS.h"
+#include "task.h"
 
 #include <stdio.h>
 #include <string.h>
 
-/* Write buffer — one SDIO block for aligned DMA writes. */
-static char s_buf[SD_LOG_BUF_SIZE];
-static uint16_t s_buf_pos;
-static FIL s_file;
-static bool s_ready;
+/* ------------------------------------------------------------------ */
+/* State                                                                */
+/* ------------------------------------------------------------------ */
 
-/* Debug trace — readable via GDB without RTT.
- * 0=not started, 1=about to mount, 2=mount returned, 3=mount ok,
- * 4=clock set, 5=file open ok, 6=ready.
- * 20=about to f_open, 40=f_open retry. Negative = error. */
-volatile int32_t sd_dbg_step = 0;
-volatile uint32_t sd_dbg_tick = 0;  /* set by t_ml each tick — proves task runs */
-/* g_hf[13] is defined in stm32f1xx_it.c (always compiled). */
+static char     s_buf[SD_LOG_BUF_SIZE];
+static uint16_t s_buf_pos;
+static FIL      s_file;
+static bool     s_mounted   = false;
+static bool     s_recording = false;
+static uint16_t s_next_index = 0;
+static char     s_last_fname[16];   /* e.g. "ml_003.csv" */
+
+/* Debug trace — readable via GDB without RTT. */
+volatile int32_t  sd_dbg_step = 0;
+volatile uint32_t sd_dbg_tick = 0;
 
 /* ------------------------------------------------------------------ */
 /* Internal helpers                                                     */
 /* ------------------------------------------------------------------ */
 
-/* Flush the buffer to SD card. */
 static void flush_buf(void)
 {
-    if (!s_ready || s_buf_pos == 0) return;
+    if (!s_recording || s_buf_pos == 0) return;
 
     UINT bw;
     FRESULT fr = f_write(&s_file, s_buf, s_buf_pos, &bw);
@@ -58,7 +59,6 @@ static void flush_buf(void)
     s_buf_pos = 0;
 }
 
-/* Append a string to the buffer. Flush if full. */
 static void buf_append(const char *str, uint16_t len)
 {
     while (len > 0) {
@@ -74,74 +74,142 @@ static void buf_append(const char *str, uint16_t len)
     }
 }
 
+/** Scan root directory for ml_NNN.csv and find the next available index. */
+static uint16_t scan_next_index(void)
+{
+    DIR dir;
+    FILINFO fno;
+    uint16_t max_idx = 0;
+    bool found_any = false;
+
+    if (f_opendir(&dir, "/") != FR_OK) return 0;
+
+    while (f_readdir(&dir, &fno) == FR_OK && fno.fname[0] != '\0') {
+        /* Match pattern: ml_NNN.csv */
+        unsigned idx;
+        if (sscanf(fno.fname, "ml_%u.csv", &idx) == 1 ||
+            sscanf(fno.fname, "ML_%u.CSV", &idx) == 1) {
+            if (!found_any || idx > max_idx) {
+                max_idx = (uint16_t)idx;
+                found_any = true;
+            }
+        }
+    }
+    f_closedir(&dir);
+
+    return found_any ? (uint16_t)(max_idx + 1) : 0;
+}
+
+/** Write data to RTT with backpressure handling (yields when buffer full). */
+static void rtt_write_blocking(const void *data, unsigned len)
+{
+    const char *p = (const char *)data;
+    unsigned remaining = len;
+
+    while (remaining > 0) {
+        unsigned written = SEGGER_RTT_Write(0, p, remaining);
+        p += written;
+        remaining -= written;
+        if (remaining > 0) {
+            vTaskDelay(1);  /* RTT buffer full — yield and retry */
+        }
+    }
+}
+
 /* ------------------------------------------------------------------ */
 /* Public API                                                          */
 /* ------------------------------------------------------------------ */
 
 bool sd_logger_init(void)
 {
-    s_ready = false;
+    s_mounted = false;
+    s_recording = false;
     s_buf_pos = 0;
+    s_last_fname[0] = '\0';
 
-    sd_dbg_step = 1;  /* about to f_mount */
-    /* Mount the SD card filesystem. */
+    sd_dbg_step = 1;
     FRESULT fr = f_mount(&SDFatFS, SDPath, 1);
-    sd_dbg_step = 3;  /* f_mount returned */
     if (fr != FR_OK) {
-        sd_dbg_step = -(int32_t)fr;  /* negative FRESULT = mount fail */
+        sd_dbg_step = -(int32_t)fr;
         rtt_log_kv("[sd] mount fail fr=", (uint32_t)fr);
         return false;
     }
-    sd_dbg_step = 4;  /* mount ok */
+    sd_dbg_step = 3;
     rtt_log_str("[sd] mounted");
 
-    /* Speed up SDIO clock now that card init is done.
-     * Init ran at ClockDiv=248 (288KHz) per SD spec.
-     * Now set ClockDiv=10 → HCLK/(10+2) = 72/12 = 6MHz.
-     * Modify CLKCR register directly — safer than SDIO_Init which
-     * resets other CLKCR bits. */
+    /* Speed up SDIO clock: 288KHz → 6MHz. */
     {
         uint32_t clkcr = SDIO->CLKCR;
-        clkcr &= ~0xFFu;   /* clear CLKDIV[7:0] */
-        clkcr |= 10u;      /* ClockDiv=10 → 6MHz */
+        clkcr &= ~0xFFu;
+        clkcr |= 10u;
         SDIO->CLKCR = clkcr;
-        sd_dbg_step = 5;
-        rtt_log_str("[sd] clk→6MHz");
+        rtt_log_str("[sd] clk->6MHz");
     }
 
-    /* Fixed filename — overwrites on each boot. User renames the
-     * file on PC before re-collecting. */
-    static const char fname[] = "ml_data.csv";
+    /* Scan for next file number. */
+    s_next_index = scan_next_index();
+    sd_dbg_step = 4;
+    rtt_log_kv("[sd] next_idx=", s_next_index);
 
-    sd_dbg_step = 20;  /* about to f_open session file */
-    fr = f_open(&s_file, fname, FA_WRITE | FA_CREATE_ALWAYS);
-    sd_dbg_step = 20 + (int32_t)fr;  /* 20=ok, 21+=FRESULT */
+    s_mounted = true;
+    return true;
+}
+
+bool sd_logger_start(void)
+{
+    if (!s_mounted || s_recording) return false;
+
+    /* Build filename: ml_000.csv .. ml_999.csv */
+    char fname[16];
+    snprintf(fname, sizeof(fname), "ml_%03u.csv", s_next_index);
+
+    sd_dbg_step = 20;
+    FRESULT fr = f_open(&s_file, fname, FA_WRITE | FA_CREATE_ALWAYS);
     if (fr != FR_OK) {
         extern SD_HandleTypeDef hsd;
         rtt_log_kv("[sd] open fail fr=", (uint32_t)fr);
         rtt_log_kv("[sd] hsd.err=", hsd.ErrorCode);
-        rtt_log_kv("[sd] hsd.state=", (uint32_t)hsd.State);
 
-        /* Retry once: some cards need a warm-up write after mount. */
+        /* Retry once. */
         fr = f_open(&s_file, fname, FA_WRITE | FA_CREATE_ALWAYS);
-        sd_dbg_step = 40 + (int32_t)fr;  /* 40=retry ok, 41+=retry fail */
         if (fr != FR_OK) {
             rtt_log_kv("[sd] retry fail fr=", (uint32_t)fr);
-            f_mount(NULL, SDPath, 0);
             return false;
         }
-        rtt_log_str("[sd] retry OK");
     }
-    sd_dbg_step = 5;  /* session file open ok */
-    rtt_log_str("[sd] file=ml_data.csv");
 
     /* Write CSV header. */
     static const char hdr[] = "ms,fsr,ax,ay,az,gx,gy,gz,tx100,ty100\n";
+    s_buf_pos = 0;
+    s_recording = true;   /* Must set before buf_append (flush_buf checks it) */
     buf_append(hdr, (uint16_t)(sizeof(hdr) - 1));
 
-    sd_dbg_step = 6;  /* fully ready */
-    s_ready = true;
+    /* Save filename for dump, advance index. */
+    memcpy(s_last_fname, fname, sizeof(fname));
+    s_next_index++;
+
+    sd_dbg_step = 6;
+    rtt_log_str("[sd] rec start:");
+    rtt_log_str(s_last_fname);
     return true;
+}
+
+void sd_logger_stop(void)
+{
+    if (!s_recording) return;
+
+    /* Flush remaining buffer and close file. */
+    flush_buf();
+    s_recording = false;
+    f_close(&s_file);
+
+    rtt_log_str("[sd] rec stop:");
+    rtt_log_str(s_last_fname);
+}
+
+bool sd_logger_is_recording(void)
+{
+    return s_recording;
 }
 
 void sd_logger_write_row(uint32_t timestamp_ms,
@@ -150,10 +218,8 @@ void sd_logger_write_row(uint32_t timestamp_ms,
                          int16_t gx, int16_t gy, int16_t gz,
                          float tilt_x, float tilt_y)
 {
-    if (!s_ready) return;
+    if (!s_recording) return;
 
-    /* Format as CSV. Tilt is stored as fixed-point ×100 to avoid
-     * float-to-string on the MCU (saves ~2KB of formatting code). */
     int32_t tx100 = (int32_t)(tilt_x * 100.0f);
     int32_t ty100 = (int32_t)(tilt_y * 100.0f);
 
@@ -173,4 +239,44 @@ void sd_logger_write_row(uint32_t timestamp_ms,
 void sd_logger_flush(void)
 {
     flush_buf();
+}
+
+/* Note: dump_rtt() blocks the calling task (T_ML) for the duration of
+ * the transfer. Sensor reads and trigger evaluation pause. This is
+ * acceptable because the user has already ended data collection. */
+void sd_logger_dump_rtt(void)
+{
+    if (!s_mounted || s_last_fname[0] == '\0') {
+        rtt_log_str("[sd] dump: no file");
+        return;
+    }
+
+    FIL f;
+    FRESULT fr = f_open(&f, s_last_fname, FA_READ);
+    if (fr != FR_OK) {
+        rtt_log_kv("[sd] dump open fail fr=", (uint32_t)fr);
+        return;
+    }
+
+    /* Framing start marker. */
+    {
+        char marker[48];
+        int n = snprintf(marker, sizeof(marker),
+                         "[sd:dump:start:%s]\n", s_last_fname);
+        if (n > 0) rtt_write_blocking(marker, (unsigned)n);
+    }
+
+    /* Stream file in chunks. */
+    char chunk[256];
+    UINT br;
+    while (f_read(&f, chunk, sizeof(chunk), &br) == FR_OK && br > 0) {
+        rtt_write_blocking(chunk, br);
+    }
+
+    /* Framing end marker. */
+    static const char end[] = "[sd:dump:end]\n";
+    rtt_write_blocking(end, sizeof(end) - 1);
+
+    f_close(&f);
+    rtt_log_str("[sd] dump done");
 }

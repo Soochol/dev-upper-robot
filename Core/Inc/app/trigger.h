@@ -21,6 +21,7 @@
 #include <stdint.h>
 #include "app/fsm.h"
 #include "app/sensors_i2c.h"
+#include "app/features.h"       /* ml_features_t */
 
 /* ========================================================================
  * Sensor snapshot — packed by T_ML, consumed by trigger_eval()
@@ -31,6 +32,7 @@ typedef struct {
     imu_raw_t imu;              /* ICM42670P accel + gyro raw */
     float     imu_tilt_x_deg;   /* derived: X-axis tilt relative to boot (deg) */
     float     imu_tilt_y_deg;   /* derived: Y-axis tilt relative to boot (deg) */
+    const ml_features_t *ml_feat; /* 9-element ML feature vector (may be NULL) */
 } sensor_snapshot_t;
 
 /* ========================================================================

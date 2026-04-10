@@ -57,6 +57,9 @@ desktop.ini
 .cache/
 compile_commands.json
 
+# ML training data (collected from SD card)
+tools/ml/data/
+
 # Local env overrides
 .env
 .env.local
