@@ -154,25 +154,30 @@
 /* ========================================================================
  * ADS1115 16-bit ADC (Texas Instruments) — used as the FSR front-end
  * ========================================================================
- * I2C device at 0x49 (ADDR pin tied to VDD). Single-channel continuous
- * mode on AIN0 single-ended.
+ * I2C device at 0x49 (ADDR pin tied to VDD). Single-shot mode on AIN0
+ * single-ended. Config value 0xC283 matches the FSR hardware reference.
  *
- * Config register (0x01) value 0x4483 breakdown:
- *   bit 15    OS = 0       (single-shot bit, ignored in continuous mode)
+ * Config register (0x01) value 0xC283 breakdown:
+ *   bit 15    OS = 1       start single-shot conversion
  *   bit 14:12 MUX = 100    AIN0 single-ended vs GND
- *   bit 11:9  PGA = 010    +/- 2.048 V full-scale
- *   bit 8     MODE = 0     continuous conversion
+ *   bit 11:9  PGA = 001    +/- 4.096 V full-scale
+ *   bit 8     MODE = 0     single-shot (power-down after conversion)
  *   bit 7:5   DR = 100     128 SPS
  *   bit 4     COMP_MODE=0  traditional comparator (unused)
- *   bit 3     COMP_POL=0   active low comparator (unused)
- *   bit 2     COMP_LAT=0   non-latching (unused)
+ *   bit 3     COMP_POL=0   active low
+ *   bit 2     COMP_LAT=0   non-latching
  *   bit 1:0   COMP_QUE=11  disable comparator
- * Composed: 0100_010_0_100_00011 = 0x4483 */
+ * Composed: 1100_0010_1000_0011 = 0xC283
+ *
+ * Read pattern: each ads1115_read() writes config (OS=1 triggers new
+ * conversion) then immediately reads the conversion register (returns
+ * previous result). First read after init is stale; second onward is
+ * 50 ms old (T_ML period). */
 
 #define ADS1115_I2C_ADDR_7B         0x49
 #define ADS1115_REG_CONVERSION      0x00
 #define ADS1115_REG_CONFIG          0x01
-#define ADS1115_CONFIG_AIN0_CONT    0x4483u
+#define ADS1115_CONFIG_SS           0xC283u
 
 /* ========================================================================
  * Trigger thresholds (FSR + IMU)

@@ -176,11 +176,13 @@ HAL_StatusTypeDef icm42670p_read(I2C_HandleTypeDef *hi2c, imu_raw_t *out)
 
 HAL_StatusTypeDef ads1115_init(I2C_HandleTypeDef *hi2c)
 {
-    /* Write config register once to start continuous conversions on AIN0.
-     * The config register is big-endian on the wire. */
+    /* Write config register to trigger the first single-shot conversion.
+     * Subsequent reads will each trigger a new conversion via OS=1.
+     * Config value 0xC283 from the FSR hardware reference guide:
+     * AIN0 single-ended, ±4.096V PGA, single-shot, 128 SPS. */
     uint8_t cfg[2] = {
-        (uint8_t)(ADS1115_CONFIG_AIN0_CONT >> 8),
-        (uint8_t)(ADS1115_CONFIG_AIN0_CONT & 0xFF),
+        (uint8_t)(ADS1115_CONFIG_SS >> 8),
+        (uint8_t)(ADS1115_CONFIG_SS & 0xFF),
     };
     HAL_StatusTypeDef st = HAL_I2C_Mem_Write(hi2c,
                                              ADS1115_I2C_ADDR_7B << 1,
@@ -189,7 +191,7 @@ HAL_StatusTypeDef ads1115_init(I2C_HandleTypeDef *hi2c)
                                              cfg, 2,
                                              TBP_HAL_TIMEOUT_MS);
     if (st == HAL_OK) {
-        rtt_log_str("[fsr] init: ADS1115 continuous mode started");
+        rtt_log_str("[fsr] init: ADS1115 single-shot mode (0xC283)");
     } else {
         rtt_log_str("[fsr] init: ADS1115 config write failed");
     }
@@ -198,14 +200,36 @@ HAL_StatusTypeDef ads1115_init(I2C_HandleTypeDef *hi2c)
 
 HAL_StatusTypeDef ads1115_read(I2C_HandleTypeDef *hi2c, int16_t *out_raw)
 {
-    uint8_t buf[2];
-    HAL_StatusTypeDef st = HAL_I2C_Mem_Read(hi2c,
-                                            ADS1115_I2C_ADDR_7B << 1,
-                                            ADS1115_REG_CONVERSION,
-                                            I2C_MEMADD_SIZE_8BIT,
-                                            buf, 2,
-                                            TBP_HAL_TIMEOUT_MS);
+    /* Single-shot pattern: write config (OS=1 triggers new conversion),
+     * then read the conversion register which returns the PREVIOUS
+     * completed result. The new conversion completes ~8 ms later and
+     * will be returned by the next call to this function.
+     *
+     * This "trigger + read-previous" approach avoids an 8 ms blocking
+     * wait inside the I2C mutex. The first read after init returns a
+     * stale value; from the second onward each result is 50 ms old
+     * (one T_ML period), which is fine for trigger threshold logic. */
+    uint8_t cfg[2] = {
+        (uint8_t)(ADS1115_CONFIG_SS >> 8),
+        (uint8_t)(ADS1115_CONFIG_SS & 0xFF),
+    };
+    HAL_StatusTypeDef st = HAL_I2C_Mem_Write(hi2c,
+                                             ADS1115_I2C_ADDR_7B << 1,
+                                             ADS1115_REG_CONFIG,
+                                             I2C_MEMADD_SIZE_8BIT,
+                                             cfg, 2,
+                                             TBP_HAL_TIMEOUT_MS);
     if (st != HAL_OK) return st;
+
+    uint8_t buf[2];
+    st = HAL_I2C_Mem_Read(hi2c,
+                          ADS1115_I2C_ADDR_7B << 1,
+                          ADS1115_REG_CONVERSION,
+                          I2C_MEMADD_SIZE_8BIT,
+                          buf, 2,
+                          TBP_HAL_TIMEOUT_MS);
+    if (st != HAL_OK) return st;
+
     /* ADS1115 conversion register is big-endian. */
     *out_raw = (int16_t)((uint16_t)buf[0] << 8 | buf[1]);
     return HAL_OK;
