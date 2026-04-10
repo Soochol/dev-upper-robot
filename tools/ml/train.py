@@ -140,7 +140,7 @@ def main():
     # Compute features with data augmentation.
     # FSR scaling simulates different grip strengths.
     # Time stretching simulates faster/slower arm movements.
-    FSR_SCALES = [0.85, 1.0, 1.1, 1.2]
+    FSR_SCALES = [1.2, 1.5, 1.8]
     TIME_SCALES = [0.8, 0.9, 1.0, 1.1, 1.2]
 
     print(f"\nComputing features (window={DEFAULT_WINDOW_SIZE})...")
