@@ -88,7 +88,7 @@ void actuators_set_led_pattern(led_pattern_t pat)
         break;
     case LED_RAMP_YELLOW:
         r2 = GPIO_PIN_SET;
-        rgb = (sk6812_color_t){0, 255, 100};   /* neon green */
+        rgb = (sk6812_color_t){255, 255, 0};   /* neon yellow, max brightness */
         break;
     case LED_FLASH_RED:
         r1 = GPIO_PIN_SET;
