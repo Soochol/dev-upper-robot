@@ -137,16 +137,59 @@ def main():
     if len(df) < 100:
         print("WARNING: Very few labeled samples. Consider collecting more data.")
 
-    # Compute features
-    print(f"\nComputing features (window={DEFAULT_WINDOW_SIZE})...")
-    X = compute_features(df, DEFAULT_WINDOW_SIZE)
-    y = df['label'].values
+    # Compute features with data augmentation.
+    # FSR scaling simulates different grip strengths.
+    # Time stretching simulates faster/slower arm movements.
+    FSR_SCALES = [0.7, 0.85, 1.0, 1.1, 1.2]
+    TIME_SCALES = [0.8, 0.9, 1.0, 1.1, 1.2]
 
-    # Drop rows where the window wasn't full yet
-    valid = np.arange(DEFAULT_WINDOW_SIZE - 1, len(X))
-    X = X[valid]
-    y = y[valid]
-    print(f"Samples after windowing: {len(X)}")
+    print(f"\nComputing features (window={DEFAULT_WINDOW_SIZE})...")
+    print(f"  FSR scales: {FSR_SCALES}")
+    print(f"  Time scales: {TIME_SCALES}")
+
+    X_all = []
+    y_all = []
+    raw_cols = ['fsr', 'ax', 'ay', 'az', 'gx', 'gy', 'gz', 'tx', 'ty']
+
+    for ts in TIME_SCALES:
+        if ts == 1.0:
+            df_t = df
+        else:
+            # Time stretch: resample each contiguous labeled segment
+            from scipy.interpolate import interp1d
+            n_orig = len(df)
+            n_new = int(n_orig * ts)
+            x_orig = np.arange(n_orig)
+            x_new = np.linspace(0, n_orig - 1, n_new)
+            df_t = pd.DataFrame()
+            for col in raw_cols:
+                if col in df.columns:
+                    f = interp1d(x_orig, df[col].values.astype(float),
+                                 kind='linear', fill_value='extrapolate')
+                    df_t[col] = f(x_new)
+            # Labels: nearest-neighbor (no interpolation for discrete labels)
+            df_t['label'] = df['label'].values[
+                np.round(x_new).astype(int).clip(0, n_orig - 1)]
+            df_t['ms'] = np.linspace(df['ms'].iloc[0], df['ms'].iloc[-1],
+                                     n_new)
+
+        for fs in FSR_SCALES:
+            df_aug = df_t.copy()
+            if fs != 1.0:
+                df_aug['fsr'] = df_aug['fsr'] * fs
+
+            X_aug = compute_features(df_aug, DEFAULT_WINDOW_SIZE)
+            y_aug = df_aug['label'].values
+
+            valid = np.arange(DEFAULT_WINDOW_SIZE - 1, len(X_aug))
+            X_all.append(X_aug[valid])
+            y_all.append(y_aug[valid])
+
+    X = np.vstack(X_all)
+    y = np.concatenate(y_all)
+    print(f"Samples after augmentation: {len(X)} "
+          f"({len(FSR_SCALES)}x FSR × {len(TIME_SCALES)}x time = "
+          f"{len(FSR_SCALES) * len(TIME_SCALES)}x)")
 
     # Cross-validation
     print("\n--- Cross-validation (5-fold) ---")
