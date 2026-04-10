@@ -181,6 +181,20 @@ void t_pid_run(void *arg)
                        " sp_cC=",  (uint32_t)((int32_t)current_cmd.setpoint_c * 100),
                        " heat=",   (uint32_t)heater_duty,
                        " fan=",    (uint32_t)fan_pct);
+
+            /* Structured log to q_log for T_LOGGER (Phase 5). Non-blocking;
+             * drop silently if the queue is full — the direct RTT heartbeat
+             * above is the primary bring-up output, q_log is the future
+             * SD/UART path. */
+            log_msg_t lm = {
+                .timestamp_ms = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS),
+                .level        = LOG_LVL_INFO,
+                .source       = LOG_SRC_PID,
+                .code         = 0,  /* 0 = periodic heartbeat */
+                .value        = (int32_t)celsius_to_centi_uint(measurement),
+                .extra        = (int32_t)heater_duty,
+            };
+            (void)xQueueSendToBack(q_log, &lm, 0);
         }
     }
 }
