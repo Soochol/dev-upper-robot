@@ -135,8 +135,10 @@ standard names. */
 #define xPortSysTickHandler SysTick_Handler
 
 /* USER CODE BEGIN Defines */
-/* Section where parameter definitions can be added (for instance, to override default ones in FreeRTOS.h) */
-
+/* Enable stack high-water-mark API for runtime stack usage monitoring.
+ * defaultTask logs each task's minimum free stack (words) at 1 Hz so
+ * we can right-size STK_*_WORDS in config.h after bring-up. */
+#define INCLUDE_uxTaskGetStackHighWaterMark  1
 /* USER CODE END Defines */
 
 #endif /* FREERTOS_CONFIG_H */

@@ -1,22 +1,24 @@
 /**
  * @file    trigger_rule.c
- * @brief   Rule-based trigger provider — FSR threshold with hysteresis + debounce.
+ * @brief   Rule-based trigger provider — FSR + IMU tilt with hysteresis + debounce.
  *
- * Hysteresis (Schmitt-trigger):
- *   fsr > FSR_THRESHOLD_UP_RAW   AND state == FORCE_DOWN → TRIG_UP
- *   fsr < FSR_THRESHOLD_DOWN_RAW AND state == FORCE_UP   → TRIG_DOWN
- *   Values between the two thresholds → no event (dead zone).
+ * Trigger logic (OR combination):
+ *   FORCE_UP  when: FSR > FSR_THRESHOLD_UP_RAW  OR  |tilt| > IMU_TILT_UP_DEG
+ *   FORCE_DOWN when: FSR < FSR_THRESHOLD_DOWN_RAW  OR  |tilt| < IMU_TILT_DOWN_DEG
  *
- * Debounce (minimum hold time):
- *   After firing a trigger event, subsequent events are suppressed for
- *   TRIGGER_DEBOUNCE_MS. This prevents FSR jitter near the threshold
- *   from causing rapid UP/DOWN oscillation that was observed in Phase 4
- *   testing (t=17~22s in the RTT log).
+ * Product context: wearable forearm device. Arm lift = FSR pressure up +
+ * tilt angle increases. Arm lower = FSR pressure down + tilt returns to 0.
+ * Using absolute tilt (fabsf) so the trigger is independent of PCB mounting
+ * orientation — whether the lift produces positive or negative tilt.
  *
- * Phase 4 v1: FSR only. IMU tilt is available in the snapshot but not
- * consulted — Phase 4b will add tilt-based triggers.
+ * Hysteresis: separate UP and DOWN thresholds for both FSR and tilt prevent
+ * oscillation when the sensor value hovers near a single threshold.
+ *
+ * Debounce: after any trigger fires, subsequent events are suppressed for
+ * TRIGGER_DEBOUNCE_MS to prevent rapid state flip-flop.
  */
 
+#include <math.h>
 #include "FreeRTOS.h"
 #include "task.h"
 #include "app/trigger.h"
@@ -25,9 +27,7 @@
 static uint8_t rule_eval(const sensor_snapshot_t *snap, fsm_state_t cur)
 {
     /* Debounce: suppress events for TRIGGER_DEBOUNCE_MS after the last
-     * trigger. Uses a static tick counter so state persists across calls.
-     * This is safe because trigger_eval (and therefore rule_eval) is only
-     * ever called from one task (T_ML), so the static is single-writer. */
+     * trigger. Single-writer safe (only T_ML calls this). */
     static TickType_t last_trigger_tick = 0;
     static uint8_t    ever_triggered    = 0;
 
@@ -39,13 +39,27 @@ static uint8_t rule_eval(const sensor_snapshot_t *snap, fsm_state_t cur)
         }
     }
 
-    int16_t fsr = snap->fsr_raw;
-    uint8_t event = TRIG_EVENT_NONE;
+    int16_t fsr       = snap->fsr_raw;
+    float   tilt_abs  = fabsf(snap->imu_tilt_x_deg);
+    uint8_t event     = TRIG_EVENT_NONE;
 
-    if (cur == FSM_FORCE_DOWN && fsr > (int16_t)FSR_THRESHOLD_UP_RAW) {
-        event = TRIG_EVENT_FORCE_UP;
-    } else if (cur == FSM_FORCE_UP && fsr < (int16_t)FSR_THRESHOLD_DOWN_RAW) {
-        event = TRIG_EVENT_FORCE_DOWN;
+    if (cur == FSM_FORCE_DOWN) {
+        /* Arm lift detection: FSR pressure increase OR tilt angle increase.
+         * Either sensor alone can trigger — OR provides redundancy. */
+        if (fsr > (int16_t)FSR_THRESHOLD_UP_RAW ||
+            tilt_abs > (float)IMU_TILT_UP_DEG) {
+            event = TRIG_EVENT_FORCE_UP;
+        }
+    } else if (cur == FSM_FORCE_UP) {
+        /* Arm lower detection: FSR pressure decrease AND tilt angle small.
+         * Using AND here (not OR) because during arm-up the tilt might
+         * briefly pass through the low zone while FSR is still high, and
+         * we don't want a premature FORCE_DOWN. Both must agree the arm
+         * is actually lowered. */
+        if (fsr < (int16_t)FSR_THRESHOLD_DOWN_RAW &&
+            tilt_abs < (float)IMU_TILT_DOWN_DEG) {
+            event = TRIG_EVENT_FORCE_DOWN;
+        }
     }
 
     if (event != TRIG_EVENT_NONE) {

@@ -289,6 +289,18 @@ void StartDefaultTask(void const * argument)
         " lo=",   (uint32_t)xPortGetMinimumEverFreeHeapSize(),
         " fsm=",  g_fsm_state);
 
+    /* Stack high-water mark: minimum free stack in WORDS for each task.
+     * Logged every 10 seconds to avoid RTT noise. A value approaching 0
+     * means the task is close to stack overflow. Use these numbers to
+     * right-size STK_*_WORDS in config.h after bring-up stabilizes. */
+    if ((tick % 10) == 0) {
+      rtt_log_hb("[hb:stk]",
+          " st=",  (uint32_t)uxTaskGetStackHighWaterMark(h_t_state),
+          " pid=", (uint32_t)uxTaskGetStackHighWaterMark(h_t_pid),
+          " ml=",  (uint32_t)uxTaskGetStackHighWaterMark(h_t_ml),
+          " log=", (uint32_t)uxTaskGetStackHighWaterMark(h_t_logger));
+    }
+
 #if PHASE2_AUTO_TRIGGER
     if (auto_trig_every > 0 && (tick % auto_trig_every) == 0) {
       trig_msg_t tmsg = {
