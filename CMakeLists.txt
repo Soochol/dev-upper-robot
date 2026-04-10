@@ -58,6 +58,9 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # FSM (Phase 2): pure transition logic + state lookup table.
     Core/Src/app/fsm.c
     Core/Src/app/state_table.c
+
+    # I2C sensor drivers (Phase 3a): TBP-H70 IR temperature + bus scanner.
+    Core/Src/app/sensors_i2c.c
 )
 
 # Add include paths

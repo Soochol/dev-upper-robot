@@ -32,4 +32,10 @@ void rtt_log_hb(const char *tag,
                 const char *kc, uint32_t vc,
                 const char *kd, uint32_t vd);
 
+/* Single key=value pair with the value in hexadecimal (uppercase, no
+ * leading zeros, "0x" prefix added automatically). Useful for I2C
+ * addresses, register dumps, and bitfields where decimal output makes
+ * the value harder to interpret. */
+void rtt_log_kv_hex(const char *prefix, uint32_t value);
+
 #endif /* APP_RTT_LOG_H */

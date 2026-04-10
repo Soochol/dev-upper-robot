@@ -44,6 +44,29 @@ static char *append_u32(char *dst, uint32_t v)
     return dst;
 }
 
+/* Append a uint32_t in uppercase hexadecimal with leading-zero
+ * suppression. Always emits at least one digit ("0" for v == 0).
+ * No "0x" prefix — the caller adds that if it wants. */
+static char *append_u32_hex(char *dst, uint32_t v)
+{
+    static const char digits[] = "0123456789ABCDEF";
+    char tmp[8];
+    int  n = 0;
+
+    if (v == 0) {
+        *dst++ = '0';
+        return dst;
+    }
+    while (v > 0 && n < 8) {
+        tmp[n++] = digits[v & 0xFu];
+        v >>= 4;
+    }
+    while (n > 0) {
+        *dst++ = tmp[--n];
+    }
+    return dst;
+}
+
 void rtt_log_str(const char *msg)
 {
     char  buf[96];
@@ -80,6 +103,19 @@ void rtt_log_hb(const char *tag,
     if (kb && p < end) { p = append_str(p, kb); p = append_u32(p, vb); }
     if (kc && p < end) { p = append_str(p, kc); p = append_u32(p, vc); }
     if (kd && p < end) { p = append_str(p, kd); p = append_u32(p, vd); }
+    *p++ = '\r';
+    *p++ = '\n';
+    SEGGER_RTT_Write(0, buf, (unsigned)(p - buf));
+}
+
+void rtt_log_kv_hex(const char *prefix, uint32_t value)
+{
+    char  buf[96];
+    char *p = buf;
+    p = append_str(p, prefix);
+    *p++ = '0';
+    *p++ = 'x';
+    p = append_u32_hex(p, value);
     *p++ = '\r';
     *p++ = '\n';
     SEGGER_RTT_Write(0, buf, (unsigned)(p - buf));

@@ -82,6 +82,53 @@
 #define PHASE2_AUTO_TRIGGER_PERIOD_MS   10000   /* 10 s alternation */
 
 /* ========================================================================
+ * IR temperature sensors (Diwell TBP-H70)
+ * ========================================================================
+ * SMBus variant: read sequence is [S addr+W cmd Sr addr+R lo hi pec P]
+ * which is exactly the shape of HAL_I2C_Mem_Read with MEMADD_SIZE_8BIT
+ * and a 3-byte read. The PEC byte (CRC-8 polynomial 0x07) is read as
+ * the third data byte; v1 driver does NOT verify PEC and treats the
+ * value as opaque — Phase 6 may add verification with a lookup table.
+ *
+ * Two sensors share I2C1. The default address is 0x3A; one sensor must
+ * be reprogrammed to a different address (0x4C in this hardware build,
+ * see vendor protocol section 4.3.1). Bring-up uses an I2C scanner at
+ * sensors_i2c_init() to verify the live addresses match these constants. */
+
+/* 7-bit slave addresses. Driver functions shift left by 1 internally
+ * before passing to HAL_I2C_Mem_Read. Keep the values as the data sheet
+ * documents them so the constants match the vendor diagrams 1:1. */
+#define IR_SENSOR_1_I2C_ADDR_7B     0x3A    /* default, unmodified */
+#define IR_SENSOR_2_I2C_ADDR_7B     0x4C    /* reprogrammed via 4.3.1 procedure */
+
+/* TBP-H70 register/command codes (vendor protocol section 4.2). */
+#define TBP_CMD_SENSOR_TEMP         0x06    /* ambient temperature */
+#define TBP_CMD_TARGET_TEMP         0x07    /* IR target temperature ← PID input */
+#define TBP_CMD_EMISSIVITY          0x24    /* emissivity setting */
+
+/* Timing requirements from the protocol document. */
+#define TBP_POWER_ON_DELAY_MS       200     /* min wait after VCC before first command */
+#define TBP_READ_PERIOD_MIN_MS      100     /* internal update is 10 Hz */
+#define TBP_HAL_TIMEOUT_MS          10      /* per HAL_I2C_Mem_Read call */
+
+/* Bit 15 of the 16-bit raw value is an error flag — if set, the reading
+ * is invalid and must be discarded. Bits 0..14 hold the data. */
+#define TBP_ERROR_FLAG_MASK         0x8000u
+#define TBP_DATA_MASK               0x7FFFu
+
+/* Conversion: raw × 0.02 = absolute temperature in Kelvin.
+ *             celsius = kelvin - 273.15
+ * The driver returns float Celsius; PID input is float as well. */
+#define TBP_RAW_TO_KELVIN_SCALE     0.02f
+#define KELVIN_TO_CELSIUS_OFFSET    273.15f
+
+/* I2C scanner range — used at sensors_i2c_init to log every device that
+ * ACKs on the bus. Standard 7-bit I2C address space is 0x08..0x77 (the
+ * lower and upper ranges are reserved). */
+#define I2C_SCAN_ADDR_MIN           0x08
+#define I2C_SCAN_ADDR_MAX           0x77
+
+/* ========================================================================
  * Trigger provider selection (compile-time, v1)
  * ======================================================================== */
 
