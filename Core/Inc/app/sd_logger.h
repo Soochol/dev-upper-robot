@@ -10,13 +10,10 @@
  *   2. Call sd_logger_write_row() each tick with raw sensor values.
  *   3. Call sd_logger_flush() periodically or at shutdown.
  *
+ * Output file: ml_data.csv (fixed name, overwritten each boot).
  * Write strategy: rows accumulate in a 512-byte RAM buffer (one SDIO
  * block). When the buffer is full, sd_logger_write_row() triggers an
  * f_write() + f_sync(). This batches writes to minimize FatFS overhead.
- *
- * No FreeRTOS dependency beyond the tick counter for timestamps. The
- * caller (T_ML) is responsible for holding mtx_i2c1 during sensor
- * reads; this module only touches the SDIO peripheral via FatFS.
  */
 
 #ifndef APP_SD_LOGGER_H
@@ -26,11 +23,10 @@
 #include <stdbool.h>
 
 /**
- * @brief  Mount SD card and open/create the CSV log file.
+ * @brief  Mount SD card and open/create ml_data.csv for logging.
  *
- * File naming: "ml_NNN.csv" where NNN increments to avoid overwriting
- * previous sessions. Scans existing files to find the next number.
- * Writes the CSV header row on a new file.
+ * Speeds up SDIO clock after mount, retries f_open once on first
+ * failure (some cards need a warm-up write). Writes CSV header.
  *
  * @return true on success, false if SD mount or file open fails.
  *         On failure, subsequent write_row calls are no-ops.

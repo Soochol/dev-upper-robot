@@ -114,7 +114,6 @@ void t_ml_run(void *arg)
         imu_raw_t imu = {0};
         int16_t   fsr_raw = 0;
         HAL_StatusTypeDef imu_st = HAL_ERROR;
-        (void)0; /* fsr_st removed — ads1115_read return checked inline */
 
         if (xSemaphoreTake(mtx_i2c1, pdMS_TO_TICKS(10)) == pdTRUE) {
             imu_st = icm42670p_read(&hi2c1, &imu);
