@@ -31,8 +31,8 @@ DEFAULT_WINDOW_SIZE = 20
 
 # Feature names — must match features.h ml_features_t order.
 FEATURE_NAMES = [
-    'fsr_raw', 'tilt_x_deg', 'tilt_y_deg', 'accel_mag',
-    'fsr_mean', 'fsr_slope', 'tilt_x_slope', 'accel_var', 'gyro_mag_mean'
+    'fsr_raw', 'tilt_x_deg', 'tilt_y_deg', 'ax_g',
+    'fsr_mean', 'fsr_slope', 'tilt_x_slope', 'ay_g', 'gyro_mag_mean'
 ]
 
 # Conversion constants — must match config.h.
@@ -53,8 +53,6 @@ def compute_features(df, window_size=DEFAULT_WINDOW_SIZE):
 
     ax = df['ax'].values * IMU_ACCEL_SCALE_G
     ay = df['ay'].values * IMU_ACCEL_SCALE_G
-    az = df['az'].values * IMU_ACCEL_SCALE_G
-    accel_mag = np.sqrt(ax**2 + ay**2 + az**2)
 
     gx = df['gx'].values * IMU_GYRO_SCALE_DPS
     gy = df['gy'].values * IMU_GYRO_SCALE_DPS
@@ -69,9 +67,7 @@ def compute_features(df, window_size=DEFAULT_WINDOW_SIZE):
         start = max(0, i - window_size + 1)
         win_fsr = fsr[start:i+1]
         win_tx = tx[start:i+1]
-        win_amag = accel_mag[start:i+1]
         win_gmag = gyro_mag[start:i+1]
-        wn = len(win_fsr)
 
         # Least-squares slope over window
         def ls_slope(y):
@@ -91,11 +87,11 @@ def compute_features(df, window_size=DEFAULT_WINDOW_SIZE):
         features[i, 0] = fsr[i]
         features[i, 1] = tx[i]
         features[i, 2] = ty[i]
-        features[i, 3] = accel_mag[i]
+        features[i, 3] = ax[i]              # raw accel X (g)
         features[i, 4] = win_fsr.mean()
         features[i, 5] = ls_slope(win_fsr)
         features[i, 6] = ls_slope(win_tx)
-        features[i, 7] = win_amag.var()
+        features[i, 7] = ay[i]              # raw accel Y (g)
         features[i, 8] = win_gmag.mean()
 
     return features
@@ -192,7 +188,15 @@ def main():
     # (Flash), costing zero stack at runtime.
     c_code = c_code.replace('(double[]){1.0, 0.0}', '_leaf_down')
     c_code = c_code.replace('(double[]){0.0, 1.0}', '_leaf_up')
+    # m2cgen may emit 'inf' for unbounded splits — define it for C.
+    c_code = c_code.replace('\ninf\n', '\nINFINITY\n')
+    needs_inf = 'inf' in c_code
     static_consts = (
+        "#include <math.h>\n"
+        "#define inf INFINITY\n\n"
+        "static const double _leaf_down[2] = {1.0, 0.0};\n"
+        "static const double _leaf_up[2]   = {0.0, 1.0};\n\n"
+    ) if needs_inf else (
         "static const double _leaf_down[2] = {1.0, 0.0};\n"
         "static const double _leaf_up[2]   = {0.0, 1.0};\n\n"
     )

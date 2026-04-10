@@ -4,6 +4,7 @@
 # 사용법:
 #   .claude/skills/build-flash/build_flash.sh              # Debug (기본)
 #   .claude/skills/build-flash/build_flash.sh Release      # Release
+#   .claude/skills/build-flash/build_flash.sh Debug -DML_TRIGGER=ON  # 추가 CMake 옵션
 #   .claude/skills/build-flash/build_flash.sh --help
 #
 # 동작:
@@ -29,6 +30,8 @@ if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
 fi
 
 PRESET="${1:-Debug}"
+shift 2>/dev/null || true
+CMAKE_EXTRA_ARGS=("$@")
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
@@ -80,9 +83,12 @@ echo "  ✓ PATH 설정 완료"
 # [3/6] CMake 빌드
 # ============================================================
 echo "[3/6] 빌드..."
-if ! cmake --preset "$PRESET" >/dev/null 2>&1; then
+if [ ${#CMAKE_EXTRA_ARGS[@]} -gt 0 ]; then
+    echo "  cmake 추가 옵션: ${CMAKE_EXTRA_ARGS[*]}"
+fi
+if ! cmake --preset "$PRESET" "${CMAKE_EXTRA_ARGS[@]}" >/dev/null 2>&1; then
     # --preset 자체가 실패하는 경우는 드물지만 일단 출력
-    cmake --preset "$PRESET" 2>&1 | tail -20
+    cmake --preset "$PRESET" "${CMAKE_EXTRA_ARGS[@]}" 2>&1 | tail -20
 fi
 
 if ! cmake --build "build/$PRESET" -j"$(nproc)"; then

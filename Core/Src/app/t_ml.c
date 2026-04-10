@@ -140,7 +140,8 @@ void t_ml_run(void *arg)
             .imu            = imu,
             .imu_tilt_x_deg = tilt_x,
             .imu_tilt_y_deg = tilt_y,
-            .ml_feat        = &ml_feat,
+            .ml_feat        = ml_features_valid(&ml_win, &ml_feat)
+                              ? &ml_feat : NULL,
         };
 
         /* Prove T_ML is alive — readable via GDB. */

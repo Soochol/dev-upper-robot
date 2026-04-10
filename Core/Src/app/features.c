@@ -164,19 +164,6 @@ static float win_slope(const float *buf, uint16_t head, uint16_t n)
     return (fn * sum_iy - sum_i * sum_y) / denom;
 }
 
-/* Compute variance: E[x²] - E[x]². */
-static float win_variance(const float *buf, uint16_t n)
-{
-    float sum   = 0.0f;
-    float sum_sq = 0.0f;
-    for (uint16_t i = 0; i < n; i++) {
-        sum    += buf[i];
-        sum_sq += buf[i] * buf[i];
-    }
-    float mean = sum / (float)n;
-    return sum_sq / (float)n - mean * mean;
-}
-
 void ml_features_update(ml_window_t *w,
                         int16_t fsr_raw,
                         float tilt_x, float tilt_y,
@@ -186,8 +173,6 @@ void ml_features_update(ml_window_t *w,
     /* Compute instantaneous derived values. */
     float ax = (float)imu->accel_x * IMU_ACCEL_SCALE_G;
     float ay = (float)imu->accel_y * IMU_ACCEL_SCALE_G;
-    float az = (float)imu->accel_z * IMU_ACCEL_SCALE_G;
-    float accel_mag = sqrtf(ax * ax + ay * ay + az * az);
 
     float gx = (float)imu->gyro_x * IMU_GYRO_SCALE_DPS;
     float gy = (float)imu->gyro_y * IMU_GYRO_SCALE_DPS;
@@ -197,7 +182,6 @@ void ml_features_update(ml_window_t *w,
     /* Push into circular buffers. */
     w->buf_fsr[w->head]       = (float)fsr_raw;
     w->buf_tilt_x[w->head]    = tilt_x;
-    w->buf_accel_mag[w->head] = accel_mag;
     w->buf_gyro_mag[w->head]  = gyro_mag;
 
     w->head = (w->head + 1) % ML_WINDOW_SIZE;
@@ -217,11 +201,11 @@ void ml_features_update(ml_window_t *w,
     out->v[0] = (float)fsr_raw;            /* fsr_raw */
     out->v[1] = tilt_x;                    /* tilt_x_deg */
     out->v[2] = tilt_y;                    /* tilt_y_deg */
-    out->v[3] = accel_mag;                 /* accel_mag */
+    out->v[3] = ax;                        /* ax_g (raw accel X) */
     out->v[4] = win_mean(w->buf_fsr, n);   /* fsr_mean */
     out->v[5] = win_slope(w->buf_fsr, oldest, n);      /* fsr_slope */
     out->v[6] = win_slope(w->buf_tilt_x, oldest, n);   /* tilt_x_slope */
-    out->v[7] = win_variance(w->buf_accel_mag, n);      /* accel_var */
+    out->v[7] = ay;                        /* ay_g (raw accel Y) */
     out->v[8] = win_mean(w->buf_gyro_mag, n);           /* gyro_mag_mean */
 }
 
@@ -230,11 +214,12 @@ bool ml_features_valid(const ml_window_t *w, const ml_features_t *feat)
     /* Window must be full before we trust temporal features. */
     if (w->count < ML_WINDOW_SIZE) return false;
 
-    /* Accel magnitude sanity: normal range is ~0.8g to ~1.2g at rest.
-     * Allow 0.3g to 3.0g to cover dynamic motion. Outside this range
-     * means sensor error or free-fall — don't trigger. */
-    float amag = feat->v[3];
-    if (amag < 0.3f || amag > 3.0f) return false;
+    /* Accel axis sanity: ±2g FSR means valid range is [-2.1, 2.1].
+     * Outside this range means sensor error or saturation. */
+    float ax_val = feat->v[3];
+    float ay_val = feat->v[7];
+    if (ax_val < -2.1f || ax_val > 2.1f) return false;
+    if (ay_val < -2.1f || ay_val > 2.1f) return false;
 
     return true;
 }

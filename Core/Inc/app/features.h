@@ -65,17 +65,17 @@ void tilt_update(tilt_state_t *s,
  * ML feature extraction — sliding window statistics
  * ========================================================================
  * Maintains a circular buffer of the last ML_WINDOW_SIZE samples and
- * computes temporal features (mean, slope, variance) each tick.
+ * computes temporal features (mean, slope) each tick.
  *
  * Feature vector (9 elements):
  *   [0] fsr_raw          instantaneous FSR reading
  *   [1] tilt_x_deg       instantaneous X-axis tilt
  *   [2] tilt_y_deg       instantaneous Y-axis tilt
- *   [3] accel_mag        instantaneous accel magnitude (g)
+ *   [3] ax_g             instantaneous accel X axis (g)
  *   [4] fsr_mean         windowed FSR mean
  *   [5] fsr_slope        windowed FSR slope (least-squares)
  *   [6] tilt_x_slope     windowed tilt X slope
- *   [7] accel_var        windowed accel magnitude variance
+ *   [7] ay_g             instantaneous accel Y axis (g)
  *   [8] gyro_mag_mean    windowed gyro magnitude mean
  */
 
@@ -95,7 +95,6 @@ typedef struct {
 typedef struct {
     float buf_fsr[ML_WINDOW_SIZE];
     float buf_tilt_x[ML_WINDOW_SIZE];
-    float buf_accel_mag[ML_WINDOW_SIZE];
     float buf_gyro_mag[ML_WINDOW_SIZE];
     uint16_t head;          /* next write position (circular) */
     uint16_t count;         /* samples inserted so far (max ML_WINDOW_SIZE) */
@@ -124,7 +123,7 @@ void ml_features_update(ml_window_t *w,
 
 /**
  * @brief  Sanity check: return true if the feature vector is usable.
- *         Returns false if accel magnitude is abnormal (< 0.3g or > 3g)
+ *         Returns false if raw accel axes are out of ±2g FSR range
  *         or if the window hasn't filled yet.
  */
 bool ml_features_valid(const ml_window_t *w, const ml_features_t *feat);
