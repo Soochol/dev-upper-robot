@@ -27,9 +27,10 @@
  * ======================================================================== */
 
 typedef struct {
-    int16_t  fsr_raw;         /* ADS1115 latest conversion (signed) */
-    imu_raw_t imu;            /* ICM42670P accel + gyro raw */
-    float    imu_tilt_deg;    /* derived: tilt angle in degrees (Phase 4b) */
+    int16_t   fsr_raw;          /* ADS1115 latest conversion (signed) */
+    imu_raw_t imu;              /* ICM42670P accel + gyro raw */
+    float     imu_tilt_x_deg;   /* derived: X-axis tilt relative to boot (deg) */
+    float     imu_tilt_y_deg;   /* derived: Y-axis tilt relative to boot (deg) */
 } sensor_snapshot_t;
 
 /* ========================================================================
