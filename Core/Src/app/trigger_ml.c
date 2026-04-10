@@ -57,16 +57,22 @@ static uint8_t ml_eval(const sensor_snapshot_t *snap, fsm_state_t cur)
     double output[2];  /* [P(FORCE_DOWN), P(FORCE_UP)] */
     score(input, output);
 
+    /* Instantaneous gyro magnitude from raw IMU. Computed before the
+     * debug log so both the log and the gate share the same value.
+     * Drops to ~0 immediately when arm stops — prevents "arm already
+     * up + FSR press" false FORCE_UP trigger. */
+    float gx = (float)snap->imu.gyro_x * IMU_GYRO_SCALE_DPS;
+    float gy_raw = (float)snap->imu.gyro_y * IMU_GYRO_SCALE_DPS;
+    float gz = (float)snap->imu.gyro_z * IMU_GYRO_SCALE_DPS;
+    float gyro_now = sqrtf(gx * gx + gy_raw * gy_raw + gz * gz);
+
     /* Debug: log model output every ~1s (every 20th call). */
     static uint32_t ml_call_count = 0;
     ml_call_count++;
     if ((ml_call_count % 20) == 0) {
         rtt_log_hb_s("[ml:p]",
                      " u=", (int32_t)(output[1] * 100.0),
-                     " gy=", (int32_t)(sqrtf(
-                         (float)snap->imu.gyro_x * (2000.0f/32768.0f) * (float)snap->imu.gyro_x * (2000.0f/32768.0f) +
-                         (float)snap->imu.gyro_y * (2000.0f/32768.0f) * (float)snap->imu.gyro_y * (2000.0f/32768.0f) +
-                         (float)snap->imu.gyro_z * (2000.0f/32768.0f) * (float)snap->imu.gyro_z * (2000.0f/32768.0f)) * 10.0f),
+                     " gy=", (int32_t)(gyro_now * 10.0f),
                      " fs=", (int32_t)snap->ml_feat->v[5],
                      " ax=", (int32_t)(snap->ml_feat->v[3] * 1000.0f));
     }
@@ -76,14 +82,6 @@ static uint8_t ml_eval(const sensor_snapshot_t *snap, fsm_state_t cur)
      * Resets to 0 if the signal drops below threshold. */
     static uint8_t up_streak   = 0;
     static uint8_t down_streak = 0;
-
-    /* FORCE_UP requires gyro activity RIGHT NOW (not windowed mean).
-     * Instantaneous gyro from raw IMU — drops to 0 immediately when
-     * arm stops. Prevents "arm already up + FSR press" false trigger. */
-    float gx = (float)snap->imu.gyro_x * (2000.0f / 32768.0f);
-    float gy_raw = (float)snap->imu.gyro_y * (2000.0f / 32768.0f);
-    float gz = (float)snap->imu.gyro_z * (2000.0f / 32768.0f);
-    float gyro_now = sqrtf(gx * gx + gy_raw * gy_raw + gz * gz);
 
     if (cur == FSM_FORCE_DOWN && output[1] > ML_PROB_THRESHOLD
                               && gyro_now > 30.0f) {
