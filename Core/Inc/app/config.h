@@ -164,12 +164,20 @@
 /* Init register values (from FSR/IMU hardware reference guide). */
 #define ICM42670P_DRIVE_CONFIG2_VAL    0x09  /* I2C drive strength */
 #define ICM42670P_SOFT_RESET_BIT       0x10  /* SIGNAL_PATH_RESET bit 4 */
-/* ACCEL_CONFIG0: FS_SEL=00 (±2g), ODR=1001 (100Hz) → 0x09 */
-#define ICM42670P_ACCEL_CONFIG0_VAL    0x09
+/* ACCEL_CONFIG0 (0x21) bit layout:
+ *   [7]   reserved = 0
+ *   [6:5] ACCEL_UI_FS_SEL: 00=±16g, 01=±8g, 10=±4g, 11=±2g
+ *   [4]   reserved = 0
+ *   [3:0] ACCEL_ODR: 0101=400Hz, 0110=200Hz, 0111=100Hz, 1000=50Hz, 1001=25Hz
+ * ±2g (11) + 100Hz (0111) = 0110_0111 = 0x67 */
+#define ICM42670P_ACCEL_CONFIG0_VAL    0x67
 /* ACCEL_CONFIG1: ACCEL_UI_FILT_BW=101 (25Hz) → bits[2:0] = 5, rest 0 → 0x05 */
 #define ICM42670P_ACCEL_CONFIG1_VAL    0x05
-/* GYRO_CONFIG0: FS_SEL=00 (±2000dps), ODR=1001 (100Hz) → 0x09 */
-#define ICM42670P_GYRO_CONFIG0_VAL     0x09
+/* GYRO_CONFIG0 (0x20) bit layout:
+ *   [6:5] GYRO_UI_FS_SEL: 00=±2000dps, 01=±1000, 10=±500, 11=±250
+ *   [3:0] GYRO_ODR: same encoding as accel
+ * ±2000dps (00) + 100Hz (0111) = 0000_0111 = 0x07 */
+#define ICM42670P_GYRO_CONFIG0_VAL     0x07
 /* GYRO_CONFIG1: GYRO_UI_FILT_BW=011 (73Hz) → bits[2:0] = 3, rest 0 → 0x03 */
 #define ICM42670P_GYRO_CONFIG1_VAL     0x03
 /* PWR_MGMT0: ACCEL=LN(11), GYRO=LN(11) → 0x0F */
