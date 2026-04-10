@@ -41,14 +41,16 @@
 #define RESET_PERIODS    48u
 
 #define BITS_PER_LED     24u
-/* +1 at the front: dummy zero pulse to absorb the STM32 DMA first-pulse
- * glitch. Without it the first CCR write outputs the stale value (0) for
- * one PWM cycle, which SK6812 interprets as a data bit and shifts the
- * entire frame by 1 bit — causing LED 0 and LED 1 to show different
- * colors even when fed the same RGB values. */
-#define DMA_LEAD_DUMMY   1u
-#define DMA_BUF_LEN      (DMA_LEAD_DUMMY + SK6812_NUM_LEDS * BITS_PER_LED + RESET_PERIODS)
-/* = 1 + 2*24 + 48 = 97 half-words */
+/* Leading reset: 48 all-zero CCR pulses = 60 µs of continuous LOW before
+ * any data bits. This forces the SK6812 into its reset state regardless
+ * of how the previous DMA transfer ended or where TIM2's counter happened
+ * to freeze on Stop_DMA. A single dummy zero was not enough because the
+ * counter can resume mid-cycle on Start_DMA, producing a truncated first
+ * pulse that the SK6812 interprets as data. A full 60 µs reset makes
+ * the initial state deterministic. */
+#define LEAD_RESET       RESET_PERIODS
+#define DMA_BUF_LEN      (LEAD_RESET + SK6812_NUM_LEDS * BITS_PER_LED + RESET_PERIODS)
+/* = 48 + 2*24 + 48 = 144 half-words = 288 bytes */
 
 /* ========================================================================
  * Static state
@@ -78,10 +80,12 @@ static void rebuild_buf(void)
 {
     uint16_t *p = g_dma_buf;
 
-    /* Dummy zero pulse — absorbs the first-pulse glitch. SK6812 sees
-     * a short low pulse (<0.3 µs high) which is below the bit-0
-     * threshold and gets ignored as inter-frame noise. */
-    *p++ = 0;
+    /* Leading reset period — 48 × 1.25 µs = 60 µs of continuous LOW.
+     * SK6812 requires ≥50 µs low to enter reset. After this, it is
+     * guaranteed to be waiting for the first data bit. */
+    for (uint32_t i = 0; i < LEAD_RESET; i++) {
+        *p++ = 0;
+    }
 
     for (int i = 0; i < SK6812_NUM_LEDS; i++) {
         /* SK6812 wire order: G R B (MSB first per byte). */
@@ -126,10 +130,14 @@ void sk6812_update(void)
     rebuild_buf();
     g_busy = 1;
 
-    /* HAL_TIM_PWM_Start_DMA expects uint32_t* but our buffer is uint16_t.
-     * This is fine: DMA is configured for HALFWORD transfer, so it reads
-     * 16-bit values from the source address regardless of the pointer type.
-     * Length is in units of the configured data width (half-words). */
+    /* Reset TIM2 counter and CCR to prevent a truncated first pulse.
+     * HAL_TIM_PWM_Stop_DMA freezes the counter at an arbitrary value;
+     * without this reset the first PWM cycle after Start_DMA would
+     * resume mid-period, producing a partial pulse that the SK6812
+     * interprets as a data bit. */
+    __HAL_TIM_SET_COUNTER(&htim2, 0);
+    __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 0);
+
     HAL_TIM_PWM_Start_DMA(&htim2, TIM_CHANNEL_2,
                            (uint32_t *)g_dma_buf, DMA_BUF_LEN);
 }
