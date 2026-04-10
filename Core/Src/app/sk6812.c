@@ -41,8 +41,14 @@
 #define RESET_PERIODS    48u
 
 #define BITS_PER_LED     24u
-#define DMA_BUF_LEN      (SK6812_NUM_LEDS * BITS_PER_LED + RESET_PERIODS)
-/* = 2 * 24 + 48 = 96 half-words = 192 bytes */
+/* +1 at the front: dummy zero pulse to absorb the STM32 DMA first-pulse
+ * glitch. Without it the first CCR write outputs the stale value (0) for
+ * one PWM cycle, which SK6812 interprets as a data bit and shifts the
+ * entire frame by 1 bit — causing LED 0 and LED 1 to show different
+ * colors even when fed the same RGB values. */
+#define DMA_LEAD_DUMMY   1u
+#define DMA_BUF_LEN      (DMA_LEAD_DUMMY + SK6812_NUM_LEDS * BITS_PER_LED + RESET_PERIODS)
+/* = 1 + 2*24 + 48 = 97 half-words */
 
 /* ========================================================================
  * Static state
@@ -71,6 +77,11 @@ static void pack_byte(uint16_t **pp, uint8_t byte)
 static void rebuild_buf(void)
 {
     uint16_t *p = g_dma_buf;
+
+    /* Dummy zero pulse — absorbs the first-pulse glitch. SK6812 sees
+     * a short low pulse (<0.3 µs high) which is below the bit-0
+     * threshold and gets ignored as inter-frame noise. */
+    *p++ = 0;
 
     for (int i = 0; i < SK6812_NUM_LEDS; i++) {
         /* SK6812 wire order: G R B (MSB first per byte). */
