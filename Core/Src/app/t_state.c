@@ -49,26 +49,6 @@ static void publish_ctrl(fsm_state_t state)
     (void)xQueueSendToBack(q_ctrl_to_pid, &cmd, 0);
 }
 
-/* Hardware self-power-off via the PC5 latch. main.c sets PC5 high at boot
- * to keep the board powered after the user releases the power button; we
- * drive it low here to drop the supply. After this call returns, MCU VDD
- * decays in a few ms and execution stops mid-instruction. The function
- * never returns in practice — the for(;;) is just a defensive halt for
- * the unlikely case where the latch fails to drop. */
-static void board_power_off(void)
-{
-    rtt_log_str("[t_state] FAULT: releasing PC5, board power off");
-    /* Quick wait so the RTT line has time to drain over SWD before VDD
-     * collapses. ~10 ms is more than enough. Use vTaskDelay (not busy-wait)
-     * because the scheduler is still healthy at this point. */
-    vTaskDelay(pdMS_TO_TICKS(10));
-    HAL_GPIO_WritePin(OUT_PWR_HOLD_GPIO_Port, OUT_PWR_HOLD_Pin, GPIO_PIN_RESET);
-    /* Defensive halt — should not be reached. */
-    for (;;) {
-        vTaskDelay(pdMS_TO_TICKS(1000));
-    }
-}
-
 /* ------------------------------------------------------------------------ */
 /* Task body                                                                */
 /* ------------------------------------------------------------------------ */
@@ -141,13 +121,8 @@ void t_state_run(void *arg)
             state_entered_tick = xTaskGetTickCount();
             publish_ctrl(state);
 
-            /* FAULT entry: T_PID will see g_fsm_state == FSM_FAULT on its
-             * next tick and force heater=0/fan=0. Wait one full PID cycle
-             * (50 ms) to let that propagate, then drop the power latch. */
             if (state == FSM_FAULT) {
-                vTaskDelay(pdMS_TO_TICKS(PERIOD_T_PID_MS + 10));
-                board_power_off();
-                /* unreachable */
+                rtt_log_str("[t_state] FAULT: heater off, fan cooling");
             }
         }
 

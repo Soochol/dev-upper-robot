@@ -81,7 +81,7 @@ QueueHandle_t q_fault_req;
 /* Current FSM state, written only by T_STATE, read by T_PID for safety
  * invariants and by defaultTask for the heartbeat dump. uint32_t alignment
  * makes single-word reads atomic on Cortex-M3 — see plan A8. */
-volatile uint32_t g_fsm_state = 0;  /* FSM_SLEEPING */
+volatile uint32_t g_fsm_state = 0;  /* FSM_FORCE_DOWN */
 
 /* USER CODE END Variables */
 osThreadId defaultTaskHandle;

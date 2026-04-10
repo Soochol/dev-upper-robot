@@ -49,7 +49,7 @@ static char *append_i32(char *dst, int32_t v)
 {
     if (v < 0) {
         *dst++ = '-';
-        v = -v;
+        return append_u32(dst, -(uint32_t)v);  /* negate in unsigned to avoid INT32_MIN UB */
     }
     return append_u32(dst, (uint32_t)v);
 }
@@ -80,8 +80,9 @@ static char *append_u32_hex(char *dst, uint32_t v)
 void rtt_log_str(const char *msg)
 {
     char  buf[96];
-    char *p = buf;
-    p = append_str(p, msg);
+    char *p   = buf;
+    char *end = buf + sizeof(buf) - 2;  /* reserve 2 for CRLF */
+    while (*msg && p < end) *p++ = *msg++;
     *p++ = '\r';
     *p++ = '\n';
     SEGGER_RTT_Write(0, buf, (unsigned)(p - buf));

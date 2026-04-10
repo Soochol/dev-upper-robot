@@ -158,25 +158,27 @@ void t_pid_run(void *arg)
             heater_duty = (uint16_t)output;
         }
 
-        /* ---- 6. FSM FAULT override (last word, always wins) ---- */
+        /* ---- 6. Snapshot FSM state once per cycle for consistency ---- */
+        fsm_state_t snap_state = (fsm_state_t)g_fsm_state;
         uint8_t fan_pct = current_cmd.fan_duty_pct;
         led_pattern_t led = (led_pattern_t)current_cmd.led_pattern;
-        if (g_fsm_state == (uint32_t)FSM_FAULT) {
+
+        if (snap_state == FSM_FAULT) {
             heater_duty = 0;
             fan_pct = 0;
             led = LED_FLASH_RED;
             pid_reset(&heater_pid);
         }
 
-        /* ---- 6a. FORCE_DOWN: fan 100% if above deadband, heater off ---- */
-        if (led == LED_FADE_YELLOW) {
+        /* ---- 6a. FORCE_DOWN: fan on if above deadband, heater off ---- */
+        if (snap_state == FSM_FORCE_DOWN) {
             heater_duty = 0;
             float err = measurement - (float)current_cmd.setpoint_c;
             fan_pct = (ir_ok && err > (float)TEMP_DEADBAND_C) ? 50 : 0;
         }
 
         /* ---- 6b. FORCE_UP: apply deadband to heater ---- */
-        if (led == LED_RAMP_YELLOW) {
+        if (snap_state == FSM_FORCE_UP) {
             float err = (float)current_cmd.setpoint_c - measurement;
             if (err <= (float)TEMP_DEADBAND_C)
                 heater_duty = 0;
