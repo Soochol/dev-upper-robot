@@ -73,6 +73,9 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 
     # Feature extraction: IMU tilt with adaptive LPF.
     Core/Src/app/features.c
+
+    # SK6812MINI RGB LED driver (TIM2_CH2 + DMA).
+    Core/Src/app/sk6812.c
 )
 
 # Add include paths

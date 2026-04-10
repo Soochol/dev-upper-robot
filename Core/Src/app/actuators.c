@@ -19,6 +19,7 @@
 #include "tim.h"
 #include "stm32f1xx_hal.h"
 #include "app/actuators.h"
+#include "app/sk6812.h"
 
 /* TIM1 ARR is 1000 (see Core/Src/tim.c MX_TIM1_Init). PID output and
  * heater duty share this scale 1:1. The fan duty is in percent so we
@@ -49,6 +50,9 @@ void actuators_init(void)
     /* LEDs all off until the first explicit pattern command. */
     HAL_GPIO_WritePin(OUT_LED_R1_GPIO_Port, OUT_LED_R1_Pin, GPIO_PIN_RESET);
     HAL_GPIO_WritePin(OUT_LED_R2_GPIO_Port, OUT_LED_R2_Pin, GPIO_PIN_RESET);
+
+    /* SK6812MINI RGB LEDs — start dark. */
+    sk6812_init();
 }
 
 void actuators_set_heater_duty(uint16_t duty_0_1000)
@@ -66,24 +70,30 @@ void actuators_set_fan_duty_pct(uint8_t pct)
 
 void actuators_set_led_pattern(led_pattern_t pat)
 {
-    /* Phase 3b mapping — solid only. Phase 6 will replace this with a
-     * tick-based blink/fade engine for FLASH_RED and the WS2812 frame. */
+    /* GPIO indicator LEDs (PB0, PB1) — solid on/off. */
     GPIO_PinState r1 = GPIO_PIN_RESET;
     GPIO_PinState r2 = GPIO_PIN_RESET;
 
+    /* SK6812MINI RGB colors for each pattern.
+     * Both LEDs get the same color (could be individualized later). */
+    sk6812_color_t rgb = {0, 0, 0};
+
     switch (pat) {
     case LED_OFF:
-        /* both off (default) */
+        /* all off */
         break;
     case LED_FADE_YELLOW:
         r1 = GPIO_PIN_SET;
+        rgb = (sk6812_color_t){64, 32, 0};    /* dim amber */
         break;
     case LED_RAMP_YELLOW:
         r2 = GPIO_PIN_SET;
+        rgb = (sk6812_color_t){255, 128, 0};   /* bright orange */
         break;
     case LED_FLASH_RED:
         r1 = GPIO_PIN_SET;
         r2 = GPIO_PIN_SET;
+        rgb = (sk6812_color_t){255, 0, 0};     /* solid red */
         break;
     default:
         break;
@@ -91,4 +101,9 @@ void actuators_set_led_pattern(led_pattern_t pat)
 
     HAL_GPIO_WritePin(OUT_LED_R1_GPIO_Port, OUT_LED_R1_Pin, r1);
     HAL_GPIO_WritePin(OUT_LED_R2_GPIO_Port, OUT_LED_R2_Pin, r2);
+
+    /* SK6812: set both LEDs to the same color + push via DMA. */
+    sk6812_set(0, rgb);
+    sk6812_set(1, rgb);
+    sk6812_update();
 }
