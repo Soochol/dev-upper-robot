@@ -58,8 +58,8 @@
 #define OVERTEMP_HARD_C        100   /* FAULT trigger threshold */
 #define TEMP_DEADBAND_C          2   /* ±2°C: within this range = target reached */
 
-/* Fan duty cycle (%) — state table default. FORCE_DOWN overrides this
- * with proportional control in t_pid.c (10%/°C above setpoint). */
+/* Fan duty cycle (%) — state table default. t_pid.c overrides based on
+ * temperature vs deadband. PWM is inverted in HW (CCR=0 → full speed). */
 #define FAN_DUTY_FORCE_UP       0
 #define FAN_DUTY_FORCE_DOWN     0
 #define FAN_DUTY_FAULT          0

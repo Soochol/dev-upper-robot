@@ -72,16 +72,17 @@ void actuators_init(void);
 void actuators_set_heater_duty(uint16_t duty_0_1000);
 
 /* ========================================================================
- * Fan (TIM1_CH2, PA9)
+ * Fan (PA9 inverted PWM + PA10 enable)
  * ======================================================================== */
 
 /**
- * @brief  Set the fan PWM duty cycle in percent.
+ * @brief  Set the fan speed in percent.
  * @param  pct  0..100; values above 100 are clamped.
+ *              0 = fan off (PA10 LOW), 100 = full speed.
  *
- * Internally converts to the 0..1000 CCR range. fan duty is NOT a PID
- * output — it comes from the state_table LUT and is a fixed value per
- * FSM state.
+ * PWM polarity is inverted in hardware: CCR=0 → full speed, CCR=1000
+ * → minimum. This function handles the inversion internally.
+ * PA10 serves as master enable (HIGH when pct > 0).
  */
 void actuators_set_fan_duty_pct(uint8_t pct);
 

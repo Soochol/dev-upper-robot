@@ -65,15 +65,13 @@ void actuators_set_heater_duty(uint16_t duty_0_1000)
 void actuators_set_fan_duty_pct(uint8_t pct)
 {
     if (pct > 100) pct = 100;
-    /* Convert 0..100 percent to 0..1000 CCR. */
-    uint16_t ccr = (uint16_t)pct * 10u;
+    /* PWM 극성 반전: CCR=0 → 풀스피드, CCR=1000 → 최저속.
+     * 변환: CCR = PERIOD - (pct * 10). pct=100 → CCR=0, pct=0 → CCR=1000. */
+    uint16_t ccr = ACTUATORS_PWM_PERIOD - (uint16_t)pct * 10u;
     __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, ccr);
-
-    /* PA10(Q4 enable) 상시 HIGH — 팬 전원 핵심 핀.
-     * PA11(Q3/FAN3111ESX) 상시 HIGH — 현재 HW 효과 없음, 향후 대비.
-     * 팬 속도는 PA9 PWM 듀티(CCR)로만 제어. */
-    HAL_GPIO_WritePin(OUT_FAN_PWR_GPIO_Port, OUT_FAN_PWR_Pin, GPIO_PIN_SET);
-    HAL_GPIO_WritePin(OUT_BLOWER_GPIO_Port,  OUT_BLOWER_Pin,  GPIO_PIN_SET);
+    /* PA10 = 팬 전원 enable. pct > 0이면 HIGH, 0이면 LOW. */
+    HAL_GPIO_WritePin(OUT_FAN_PWR_GPIO_Port, OUT_FAN_PWR_Pin,
+                      pct > 0 ? GPIO_PIN_SET : GPIO_PIN_RESET);
 }
 
 /* Blink: 1 Hz (500 ms on, 500 ms off).

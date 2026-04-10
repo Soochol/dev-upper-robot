@@ -62,7 +62,7 @@ typedef enum {
 /* Per-state output configuration. Looked up from state_table.c each tick. */
 typedef struct {
     int16_t  setpoint_c;     /* PID setpoint in °C, ignored if pid_enabled = false */
-    uint8_t  fan_duty_pct;   /* fan PWM duty 0..100 */
+    uint8_t  fan_duty_pct;   /* fan speed 0..100 (inverted PWM + PA10 enable) */
     uint8_t  led_pattern;    /* led_pattern_t enum, defined in actuators.h */
     bool     pid_enabled;    /* false in FAULT only */
     uint32_t safety_max_ms;  /* 0 = no timeout (FORCE_DOWN, FAULT) */
