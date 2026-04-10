@@ -46,15 +46,38 @@ void t_ml_run(void *arg)
     rtt_log_kv("[t_ml] provider=", 0);  /* 0 = name follows next line */
     rtt_log_str(trigger_provider_name());
 
-    /* One-shot sensor init under the bus mutex. ICM42670P needs a ~10 ms
-     * ramp-up after enabling; ADS1115 starts converting immediately. */
+    /* One-shot sensor init. Split into 3 mutex-bounded phases with
+     * delays OUTSIDE the mutex. This prevents T_PID from hitting
+     * IR_READ_FAIL_LIMIT during our 150 ms of combined sensor
+     * start-up delays. Each phase holds the mutex for <10 ms of
+     * I2C traffic only. */
+
+    /* Phase 1: ICM42670P soft reset (I2C writes only, <5 ms). */
     if (xSemaphoreTake(mtx_i2c1, pdMS_TO_TICKS(500)) == pdTRUE) {
-        (void)icm42670p_init(&hi2c1);
-        vTaskDelay(pdMS_TO_TICKS(ICM42670P_STARTUP_DELAY_MS));
+        (void)icm42670p_reset(&hi2c1);
+        xSemaphoreGive(mtx_i2c1);
+    } else {
+        rtt_log_str("[t_ml] init: mtx timeout (reset)");
+    }
+    /* Soft reset settling — mutex FREE, T_PID can read IR here. */
+    vTaskDelay(pdMS_TO_TICKS(ICM42670P_RESET_DELAY_MS));
+
+    /* Phase 2: ICM42670P config (WHO_AM_I + accel/gyro/PWR, <10 ms). */
+    if (xSemaphoreTake(mtx_i2c1, pdMS_TO_TICKS(500)) == pdTRUE) {
+        (void)icm42670p_configure(&hi2c1);
+        xSemaphoreGive(mtx_i2c1);
+    } else {
+        rtt_log_str("[t_ml] init: mtx timeout (configure)");
+    }
+    /* PWR_MGMT0 stabilization — mutex FREE. */
+    vTaskDelay(pdMS_TO_TICKS(ICM42670P_STARTUP_DELAY_MS));
+
+    /* Phase 3: ADS1115 config write (<2 ms). */
+    if (xSemaphoreTake(mtx_i2c1, pdMS_TO_TICKS(500)) == pdTRUE) {
         (void)ads1115_init(&hi2c1);
         xSemaphoreGive(mtx_i2c1);
     } else {
-        rtt_log_str("[t_ml] init: mtx_i2c1 timeout");
+        rtt_log_str("[t_ml] init: mtx timeout (ads1115)");
     }
 
     /* Tilt computation state — persistent across ticks. */

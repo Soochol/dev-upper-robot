@@ -106,11 +106,19 @@ typedef struct {
 } imu_raw_t;
 
 /**
- * @brief  Initialize the ICM42670P. Reads WHO_AM_I for sanity, then
- *         enables accel + gyro in low-noise mode.
- * @return HAL_OK if WHO_AM_I matches and PWR write succeeds.
+ * @brief  ICM42670P init phase 1 — soft reset.
+ *         I2C writes only, no delay. Caller must wait 100 ms after
+ *         this returns before calling icm42670p_configure.
  */
-HAL_StatusTypeDef icm42670p_init(I2C_HandleTypeDef *hi2c);
+HAL_StatusTypeDef icm42670p_reset(I2C_HandleTypeDef *hi2c);
+
+/**
+ * @brief  ICM42670P init phase 2 — WHO_AM_I check + accel/gyro config.
+ *         I2C writes only, no delay. Caller must wait 50 ms after
+ *         this returns before first data read.
+ * @return HAL_OK if WHO_AM_I matches and all config writes succeed.
+ */
+HAL_StatusTypeDef icm42670p_configure(I2C_HandleTypeDef *hi2c);
 
 /**
  * @brief  Burst-read 12 bytes of accel + gyro data.

@@ -38,8 +38,12 @@
 #include "app/pid.h"
 #include "app/rtt_log.h"
 
-/* Three consecutive read failures on either sensor escalates to FAULT. */
-#define IR_READ_FAIL_LIMIT   3u
+/* Consecutive read failures before escalating to FAULT. Set high enough
+ * to survive the boot-time init window where T_ML holds mtx_i2c1 for
+ * ~300 ms (ICM42670P soft reset + startup). At 20 Hz that's ~6 missed
+ * reads; we use 40 (~2 seconds) as a comfortable margin so only real
+ * sustained sensor failures trigger FAULT. */
+#define IR_READ_FAIL_LIMIT   40u
 
 /* Encode a Celsius value as signed centi-Celsius for the integer-only
  * RTT logger. 25.43 °C → 2543, -1.20 °C → -120. */
