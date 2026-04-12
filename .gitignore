@@ -63,3 +63,6 @@ tools/ml/__pycache__/
 # Local env overrides
 .env
 .env.local
+
+# Claude Code worktrees (per official convention)
+.claude/worktrees/

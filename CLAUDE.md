@@ -10,6 +10,7 @@ STM32F103RC + FreeRTOS 베어메탈 프로젝트. CubeMX(`PSP.ioc`) + CMake + ST
 | `debugging.md` | GDB 디버깅 + 훅 우회 |
 | `safety.md` | RDP 경고, ST-Link FW 버전 |
 | `project-structure.md` | 디렉토리 구조 + 페리페럴 |
+| `worktree.md` | Claude Code 워크트리 컨벤션 (`.claude/worktrees/<name>`) |
 
 ## 팬 제어 (HW 특성)
 
