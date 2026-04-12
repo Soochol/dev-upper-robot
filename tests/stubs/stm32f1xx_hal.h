@@ -1,27 +1,16 @@
-/**
- * @file    stm32f1xx_hal.h  (HOST STUB)
- * @brief   Minimal stub so sensors_i2c.h compiles on the host.
- *
- * Only the types referenced by sensors_i2c.h are defined here.
- * No actual HAL functionality — tests never call HAL functions.
- */
-
+/* Minimal HAL stub for host-side unit tests.
+ * Only provides types that app headers reference. */
 #ifndef STM32F1XX_HAL_H_STUB
 #define STM32F1XX_HAL_H_STUB
 
 #include <stdint.h>
 
-typedef enum {
-    HAL_OK       = 0x00U,
-    HAL_ERROR    = 0x01U,
-    HAL_BUSY     = 0x02U,
-    HAL_TIMEOUT  = 0x03U
-} HAL_StatusTypeDef;
+typedef enum { HAL_OK = 0, HAL_ERROR, HAL_BUSY, HAL_TIMEOUT } HAL_StatusTypeDef;
 
-/* Opaque handle — sensors_i2c.h declares pointers to this but test code
- * never dereferences them. */
+/* I2C handle stub — not used in pure-logic tests but needed by
+ * sensors_i2c.h which is included transitively by some app headers. */
 typedef struct {
-    uint32_t dummy;
+    void *Instance;
 } I2C_HandleTypeDef;
 
-#endif /* STM32F1XX_HAL_H_STUB */
+#endif
