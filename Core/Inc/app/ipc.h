@@ -89,8 +89,8 @@ typedef struct {
     uint8_t  pad[3];
 } trig_msg_t;
 
-/* T_PID → T_STATE. Raised when over-temperature or sensor error is detected.
- * Tiny payload — just the trigger reason for logging. */
+/* T_PID / T_ML → T_STATE. Raised when over-temperature, sensor error, or
+ * I2C bus failure is detected. Tiny payload — just the reason for logging. */
 typedef struct {
     uint8_t  reason;          /* fault_reason_t */
     uint8_t  pad[3];

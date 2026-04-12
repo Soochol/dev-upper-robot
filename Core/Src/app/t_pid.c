@@ -152,9 +152,14 @@ void t_pid_run(void *arg)
                         }
                     }
                     xSemaphoreGive(mtx_i2c1);
-                }
-                if (!recovered) {
-                    fault_req_t freq = { .reason = FAULT_REASON_SENSOR_TIMEOUT, .pad = {0,0,0} };
+                    if (!recovered) {
+                        fault_req_t freq = { .reason = FAULT_REASON_SENSOR_TIMEOUT };
+                        (void)xQueueSendToBack(q_fault_req, &freq, 0);
+                        ir_fail_count = 0u;
+                    }
+                } else {
+                    /* Mutex timeout — recovery impossible. Send FAULT. */
+                    fault_req_t freq = { .reason = FAULT_REASON_SENSOR_TIMEOUT };
                     (void)xQueueSendToBack(q_fault_req, &freq, 0);
                     ir_fail_count = 0u;
                 }
@@ -177,8 +182,10 @@ void t_pid_run(void *arg)
             if (overtemp) {
                 overtemp_count++;
                 if (overtemp_count >= OVERTEMP_SUSTAIN_COUNT) {
-                    fault_req_t freq = { .reason = FAULT_REASON_OVERTEMP, .pad = {0,0,0} };
-                    (void)xQueueSendToBack(q_fault_req, &freq, 0);
+                    if ((fsm_state_t)g_fsm_state != FSM_FAULT) {
+                        fault_req_t freq = { .reason = FAULT_REASON_OVERTEMP };
+                        (void)xQueueSendToBack(q_fault_req, &freq, 0);
+                    }
                     overtemp_count = OVERTEMP_SUSTAIN_COUNT; /* [C4] clamp, prevent uint32 wrap */
                 }
             } else {
