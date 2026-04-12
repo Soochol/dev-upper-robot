@@ -77,12 +77,18 @@ void t_state_run(void *arg)
 
         fsm_event_t event = FSM_EVT_NONE;
 
-        /* Priority 1: fault request from T_PID. Highest priority because
-         * a fault during a trigger event still routes to FAULT. */
-        fault_req_t freq;
-        if (xQueueReceive(q_fault_req, &freq, 0) == pdTRUE) {
-            event = FSM_EVT_FAULT_REQUESTED;
-            rtt_log_kv("[t_state] fault_req reason=", (uint32_t)freq.reason);
+        /* Priority 1: fault requests from T_PID and/or T_ML. Drain the
+         * entire queue so all fault reasons are logged [C3]. Only the
+         * first triggers the FSM transition; subsequent ones in FAULT
+         * state are no-ops via fsm_next(). */
+        {
+            fault_req_t freq;
+            while (xQueueReceive(q_fault_req, &freq, 0) == pdTRUE) {
+                if (event == FSM_EVT_NONE) {
+                    event = FSM_EVT_FAULT_REQUESTED;
+                }
+                rtt_log_kv("[t_state] fault_req reason=", (uint32_t)freq.reason);
+            }
         }
 
         /* Priority 2: safety timeout (FORCE_UP only). Skip if a higher
@@ -133,5 +139,8 @@ void t_state_run(void *arg)
                        (const char *)0, 0,
                        (const char *)0, 0);
         }
+
+        /* Canary: prove T_STATE completed a full loop iteration. */
+        g_canary_state++;
     }
 }

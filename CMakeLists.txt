@@ -53,6 +53,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Core/Src/app/t_pid.c
     Core/Src/app/t_ml.c
     Core/Src/app/t_logger.c
+    Core/Src/app/t_wdg.c
     Core/Src/app/rtt_log.c
 
     # FSM (Phase 2): pure transition logic + state lookup table.

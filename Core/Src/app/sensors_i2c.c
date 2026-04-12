@@ -298,6 +298,67 @@ HAL_StatusTypeDef ads1115_read(I2C_HandleTypeDef *hi2c, int16_t *out_raw)
 }
 
 /* ====================================================================
+ * I2C bus recovery
+ * ==================================================================== */
+
+void i2c1_bus_recover(I2C_HandleTypeDef *hi2c)
+{
+    /* Must be called with mtx_i2c1 held [C2]. */
+
+    rtt_log_str("[i2c] bus recovery start");
+
+    /* Step 1: tear down the HAL I2C state machine. This clears any
+     * HAL_BUSY / HAL_ERROR latched state in the handle. */
+    HAL_I2C_DeInit(hi2c);
+
+    /* Step 2: reconfigure SCL and SDA as GPIO open-drain outputs.
+     * I2C1 remapped to PB8 (SCL) / PB9 (SDA) on this board. */
+    GPIO_InitTypeDef gpio = {0};
+    gpio.Pin   = I2C1_SCL_IR_Pin | I2C1_SDA_IR_Pin;
+    gpio.Mode  = GPIO_MODE_OUTPUT_OD;
+    gpio.Speed = GPIO_SPEED_FREQ_HIGH;
+    HAL_GPIO_Init(GPIOB, &gpio);
+
+    /* Ensure SCL starts HIGH, SDA starts HIGH (idle bus). */
+    HAL_GPIO_WritePin(GPIOB, I2C1_SCL_IR_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(GPIOB, I2C1_SDA_IR_Pin, GPIO_PIN_SET);
+
+    /* Step 3: toggle SCL 9 times. If a slave is holding SDA low
+     * mid-byte, this clocks out the remaining bits so the slave
+     * releases SDA. Each half-cycle is ~5 µs (200 kHz effective). */
+    for (int i = 0; i < 9; i++) {
+        HAL_GPIO_WritePin(GPIOB, I2C1_SCL_IR_Pin, GPIO_PIN_RESET);
+        for (volatile int d = 0; d < 20; d++) { __asm__ volatile ("nop"); }
+        HAL_GPIO_WritePin(GPIOB, I2C1_SCL_IR_Pin, GPIO_PIN_SET);
+        for (volatile int d = 0; d < 20; d++) { __asm__ volatile ("nop"); }
+
+        /* If SDA is already HIGH, the slave released — we can stop early. */
+        if (HAL_GPIO_ReadPin(GPIOB, I2C1_SDA_IR_Pin) == GPIO_PIN_SET) {
+            break;
+        }
+    }
+
+    /* Step 4: generate a proper STOP condition.
+     * Sequence: SCL LOW → SDA LOW → SCL HIGH → SDA HIGH (= STOP).
+     * [C5] Must pull SCL LOW first to avoid generating a spurious START
+     * (SDA falling while SCL is HIGH). */
+    HAL_GPIO_WritePin(GPIOB, I2C1_SCL_IR_Pin, GPIO_PIN_RESET);
+    for (volatile int d = 0; d < 20; d++) { __asm__ volatile ("nop"); }
+    HAL_GPIO_WritePin(GPIOB, I2C1_SDA_IR_Pin, GPIO_PIN_RESET);
+    for (volatile int d = 0; d < 20; d++) { __asm__ volatile ("nop"); }
+    HAL_GPIO_WritePin(GPIOB, I2C1_SCL_IR_Pin, GPIO_PIN_SET);
+    for (volatile int d = 0; d < 20; d++) { __asm__ volatile ("nop"); }
+    HAL_GPIO_WritePin(GPIOB, I2C1_SDA_IR_Pin, GPIO_PIN_SET);
+
+    /* Step 5: re-initialize the HAL I2C peripheral.
+     * HAL_I2C_Init → MspInit restores GPIO AF + AFIO remap + clock
+     * automatically. No manual GPIO reconfiguration needed [C1]. */
+    HAL_I2C_Init(hi2c);
+
+    rtt_log_str("[i2c] bus recovery done");
+}
+
+/* ====================================================================
  * TBP-H70 IR temperature
  * ==================================================================== */
 

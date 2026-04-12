@@ -29,6 +29,7 @@ extern TaskHandle_t h_t_state;
 extern TaskHandle_t h_t_pid;
 extern TaskHandle_t h_t_ml;
 extern TaskHandle_t h_t_logger;
+extern TaskHandle_t h_t_wdg;
 
 /* ========================================================================
  * Mutexes
@@ -97,8 +98,10 @@ typedef struct {
 
 typedef enum {
     FAULT_REASON_OVERTEMP = 0,
-    FAULT_REASON_SENSOR_TIMEOUT,
+    FAULT_REASON_SENSOR_TIMEOUT,    /* IR (T_PID) */
     FAULT_REASON_PID_WATCHDOG,
+    FAULT_REASON_FSR_TIMEOUT,       /* FSR/ADS1115 (T_ML) */
+    FAULT_REASON_IMU_TIMEOUT,       /* IMU/ICM42670P (T_ML) */
 } fault_reason_t;
 
 /* ========================================================================
@@ -117,5 +120,16 @@ extern QueueHandle_t q_fault_req;        /* fault_req_t,  depth Q_FAULT_REQ_DEPT
 /* Current FSM state, written only by T_STATE, read by T_PID for safety
  * invariants. uint32_t alignment guarantees atomic read on Cortex-M3. */
 extern volatile uint32_t g_fsm_state;
+
+/* ========================================================================
+ * Canary counters (IWDG watchdog)
+ * ========================================================================
+ * Each task increments its counter at the end of its main loop. T_WDG
+ * reads all three each tick. volatile uint32_t at file scope is atomic
+ * on Cortex-M3 (aligned 32-bit load/store). */
+
+extern volatile uint32_t g_canary_state;
+extern volatile uint32_t g_canary_pid;
+extern volatile uint32_t g_canary_ml;
 
 #endif /* APP_IPC_H */

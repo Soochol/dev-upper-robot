@@ -25,6 +25,7 @@
 #include "i2c.h"
 #include "sdio.h"
 #include "spi.h"
+#include "iwdg.h"
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"

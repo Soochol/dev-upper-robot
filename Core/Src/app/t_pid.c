@@ -133,19 +133,57 @@ void t_pid_run(void *arg)
         } else {
             ir_fail_count++;
             if (ir_fail_count >= IR_READ_FAIL_LIMIT) {
-                fault_req_t freq = { .reason = FAULT_REASON_SENSOR_TIMEOUT, .pad = {0,0,0} };
-                (void)xQueueSendToBack(q_fault_req, &freq, 0);
-                ir_fail_count = 0u;  /* avoid retriggering every cycle */
+                /* Attempt I2C bus recovery before declaring FAULT.
+                 * 3 immediate retries under mutex [C2], then FAULT. */
+                bool recovered = false;
+                if (xSemaphoreTake(mtx_i2c1, pdMS_TO_TICKS(100)) == pdTRUE) {
+                    for (uint8_t att = 0; att < I2C_MAX_RECOVERY; att++) {
+                        g_canary_pid++;  /* [C2] keep canary alive during recovery */
+                        i2c1_bus_recover(&hi2c1);
+                        float test1 = 0.0f, test2 = 0.0f;
+                        HAL_StatusTypeDef r1 = tbp_h70_read_target_c(
+                            &hi2c1, IR_SENSOR_1_I2C_ADDR_7B, &test1);
+                        HAL_StatusTypeDef r2 = tbp_h70_read_target_c(
+                            &hi2c1, IR_SENSOR_2_I2C_ADDR_7B, &test2);
+                        if (r1 == HAL_OK && r2 == HAL_OK) {
+                            recovered = true;
+                            ir_fail_count = 0u;
+                            break;
+                        }
+                    }
+                    xSemaphoreGive(mtx_i2c1);
+                }
+                if (!recovered) {
+                    fault_req_t freq = { .reason = FAULT_REASON_SENSOR_TIMEOUT, .pad = {0,0,0} };
+                    (void)xQueueSendToBack(q_fault_req, &freq, 0);
+                    ir_fail_count = 0u;
+                }
             }
         }
 
-        /* ---- 4. Over-temperature: raw value check, immediate fault ---- */
+        /* ---- 4. Over-temperature: raw value check ----
+         *
+         * [W7] The `overtemp` boolean still kills heater_duty immediately
+         * on the first sample above OVERTEMP_HARD_C (existing behavior).
+         * The FAULT transition is now gated by OVERTEMP_SUSTAIN_COUNT
+         * consecutive exceeding samples (1 second) to reject noise spikes.
+         * [W4] Counter is NOT reset after sending FAULT — if the queue
+         * was full, the next tick retries immediately. */
         bool overtemp = false;
         if (st1 == HAL_OK && ir1_c > (float)OVERTEMP_HARD_C) overtemp = true;
         if (st2 == HAL_OK && ir2_c > (float)OVERTEMP_HARD_C) overtemp = true;
-        if (overtemp) {
-            fault_req_t freq = { .reason = FAULT_REASON_OVERTEMP, .pad = {0,0,0} };
-            (void)xQueueSendToBack(q_fault_req, &freq, 0);
+        {
+            static uint32_t overtemp_count = 0;
+            if (overtemp) {
+                overtemp_count++;
+                if (overtemp_count >= OVERTEMP_SUSTAIN_COUNT) {
+                    fault_req_t freq = { .reason = FAULT_REASON_OVERTEMP, .pad = {0,0,0} };
+                    (void)xQueueSendToBack(q_fault_req, &freq, 0);
+                    overtemp_count = OVERTEMP_SUSTAIN_COUNT; /* [C4] clamp, prevent uint32 wrap */
+                }
+            } else {
+                overtemp_count = 0;
+            }
         }
 
         /* ---- 5. FSM-aware control: compute PID only in FORCE_UP ----
@@ -250,5 +288,8 @@ void t_pid_run(void *arg)
             };
             (void)xQueueSendToBack(q_log, &lm, 0);
         }
+
+        /* Canary: prove T_PID completed a full loop iteration. */
+        g_canary_pid++;
     }
 }
