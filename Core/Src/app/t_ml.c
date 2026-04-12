@@ -116,20 +116,83 @@ void t_ml_run(void *arg)
         imu_raw_t imu = {0};
         int16_t   fsr_raw = 0;
         HAL_StatusTypeDef imu_st = HAL_ERROR;
-        static int16_t last_valid_fsr = 0;
+        HAL_StatusTypeDef fsr_st = HAL_ERROR;
 
         if (xSemaphoreTake(mtx_i2c1, pdMS_TO_TICKS(10)) == pdTRUE) {
             imu_st = icm42670p_read(&hi2c1, &imu);
-            HAL_StatusTypeDef fsr_st = ads1115_read(&hi2c1, &fsr_raw);
-            if (fsr_st == HAL_OK) {
-                last_valid_fsr = fsr_raw;
-            }
+            fsr_st = ads1115_read(&hi2c1, &fsr_raw);
             xSemaphoreGive(mtx_i2c1);
         }
         /* Use last valid FSR on any failure (I2C error OR mutex timeout).
          * Without this, fsr_raw=0 on mutex timeout would cause a false
          * FORCE_DOWN via the threshold check (0 < FSR_THRESHOLD_DOWN_RAW). */
         fsr_raw = last_valid_fsr;
+
+        /* ---- 1a. Sensor failure tracking ----
+         * Keep last valid values on failure (prevents false triggers).
+         * Escalate to bus recovery + FAULT after ML_SENSOR_FAIL_LIMIT. */
+        {
+            static int16_t last_valid_fsr = 0;
+            static uint32_t fsr_fail_count = 0;
+            static uint32_t imu_fail_count = 0;
+
+            if (fsr_st == HAL_OK) {
+                last_valid_fsr = fsr_raw;
+                fsr_fail_count = 0;
+            } else {
+                fsr_raw = last_valid_fsr;
+                fsr_fail_count++;
+            }
+
+            if (imu_st == HAL_OK) {
+                imu_fail_count = 0;
+            } else {
+                imu_fail_count++;
+            }
+
+            if (fsr_fail_count >= ML_SENSOR_FAIL_LIMIT ||
+                imu_fail_count >= ML_SENSOR_FAIL_LIMIT) {
+                /* Bus recovery under mutex [C2]. */
+                if (xSemaphoreTake(mtx_i2c1, pdMS_TO_TICKS(100)) == pdTRUE) {
+                    bool recovered = false;
+                    for (uint8_t att = 0; att < I2C_MAX_RECOVERY; att++) {
+                        g_canary_ml++;  /* [C2] keep canary alive during recovery */
+                        i2c1_bus_recover(&hi2c1);
+                        imu_raw_t test_imu = {0};
+                        int16_t   test_fsr = 0;
+                        HAL_StatusTypeDef t1 = icm42670p_read(&hi2c1, &test_imu);
+                        HAL_StatusTypeDef t2 = ads1115_read(&hi2c1, &test_fsr);
+                        if (t1 == HAL_OK && t2 == HAL_OK) {
+                            recovered = true;
+                            fsr_fail_count = 0;
+                            imu_fail_count = 0;
+                            break;
+                        }
+                    }
+                    xSemaphoreGive(mtx_i2c1);
+                    if (!recovered) {
+                        fault_req_t freq = {
+                            .reason = (fsr_fail_count >= ML_SENSOR_FAIL_LIMIT)
+                                      ? FAULT_REASON_FSR_TIMEOUT
+                                      : FAULT_REASON_IMU_TIMEOUT,
+                            .pad = {0,0,0}
+                        };
+                        (void)xQueueSendToBack(q_fault_req, &freq, 0);
+                        fsr_fail_count = 0;
+                        imu_fail_count = 0;
+                    }
+                } else {
+                    /* [W2] Mutex timeout — recovery impossible. Send FAULT. */
+                    fault_req_t freq = {
+                        .reason = FAULT_REASON_FSR_TIMEOUT,
+                        .pad = {0,0,0}
+                    };
+                    (void)xQueueSendToBack(q_fault_req, &freq, 0);
+                    fsr_fail_count = 0;
+                    imu_fail_count = 0;
+                }
+            }
+        }
 
         /* ---- 2. Feature extraction: tilt from accel ---- */
         float tilt_x = 0.0f, tilt_y = 0.0f;
@@ -217,5 +280,8 @@ void t_ml_run(void *arg)
                          NULL, 0,
                          NULL, 0);
         }
+
+        /* Canary: prove T_ML completed a full loop iteration. */
+        g_canary_ml++;
     }
 }

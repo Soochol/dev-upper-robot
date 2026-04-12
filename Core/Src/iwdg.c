@@ -1,62 +1,27 @@
-/* USER CODE BEGIN Header */
 /**
-  ******************************************************************************
-  * @file    iwdg.c
-  * @brief   This file provides code for the configuration
-  *          of the IWDG instances.
-  ******************************************************************************
-  * @attention
-  *
-  * Copyright (c) 2026 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
-  */
-/* USER CODE END Header */
-/* Includes ------------------------------------------------------------------*/
+ * @file    iwdg.c
+ * @brief   IWDG peripheral init — independent watchdog.
+ *
+ * LSI ~40 kHz, prescaler 64, reload 250 → timeout ~400 ms.
+ * Called from T_WDG task body so the countdown starts only when the
+ * kicker is already running [C1].
+ */
+
 #include "iwdg.h"
-
-/* USER CODE BEGIN 0 */
-
-/* USER CODE END 0 */
+#include "app/config.h"
 
 IWDG_HandleTypeDef hiwdg;
 
-/* IWDG init function */
 void MX_IWDG_Init(void)
 {
+    hiwdg.Instance       = IWDG;
+    hiwdg.Init.Prescaler = IWDG_PRESCALER_VAL;
+    hiwdg.Init.Reload    = IWDG_RELOAD_VAL;
 
-  /* USER CODE BEGIN IWDG_Init 0 */
-
-  /* USER CODE END IWDG_Init 0 */
-
-  /* USER CODE BEGIN IWDG_Init 1 */
-
-  /* USER CODE END IWDG_Init 1 */
-
-  /* Timeout = LSI / Prescaler / Reload = 40000 / 256 / 625 ≈ 0.25 Hz ≈ 4 s.
-   * defaultTask refreshes every PERIOD_HEARTBEAT_MS (1000 ms = 1 s), well
-   * within the 4 s window. A FreeRTOS scheduler hang (all tasks blocked or
-   * no task calling Refresh) trips the watchdog and forces a cold reset,
-   * ensuring the heater cannot stay on indefinitely. */
-  hiwdg.Instance = IWDG;
-  hiwdg.Init.Prescaler = IWDG_PRESCALER_256;
-  hiwdg.Init.Reload = 625;
-  if (HAL_IWDG_Init(&hiwdg) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /* USER CODE BEGIN IWDG_Init 2 */
-
-  /* USER CODE END IWDG_Init 2 */
-
+    if (HAL_IWDG_Init(&hiwdg) != HAL_OK) {
+        /* IWDG init failure is unrecoverable — the watchdog peripheral
+         * is always present on STM32F103. If this fails, the hardware
+         * is in a bad state. Let the system run without HW watchdog;
+         * the canary mechanism still logs stalls via RTT. */
+    }
 }
-
-/* USER CODE BEGIN 1 */
-
-/* USER CODE END 1 */

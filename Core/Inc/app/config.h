@@ -307,7 +307,7 @@
 #define Q_LOG_DEPTH               16
 #define Q_CTRL_TO_PID_DEPTH        4
 #define Q_TRIGGER_TO_STATE_DEPTH   4
-#define Q_FAULT_REQ_DEPTH          2
+#define Q_FAULT_REQ_DEPTH          4   /* T_PID + T_ML concurrent fault [C3] */
 
 /* ========================================================================
  * ML feature extraction
@@ -337,5 +337,46 @@
  * row this flushes roughly every 2 seconds, reducing SDIO traffic vs
  * the previous 512 B (flush every 0.5 s) that triggered write errors. */
 #define SD_LOG_BUF_SIZE         2048
+
+/* ========================================================================
+ * IWDG + T_WDG watchdog
+ * ========================================================================
+ * T_WDG is a dedicated watchdog task. Each application task increments a
+ * canary counter at the end of its main loop. T_WDG checks all canaries
+ * every PERIOD_T_WDG_MS. If all are alive, it kicks the IWDG. If any
+ * canary stalls for CANARY_MAX_MISS consecutive checks, T_WDG stops
+ * kicking → IWDG resets the MCU after ~400 ms.
+ *
+ * IWDG config: LSI 40 kHz, prescaler 64, reload 250 → ~400 ms timeout.
+ * T_WDG initializes IWDG inside its own task body (not main.c) so the
+ * countdown never starts before the kicker is ready [C1]. */
+
+#define PRIO_T_WDG            6     /* [W10] above all monitored tasks */
+#define STK_T_WDG_WORDS       (128)   /* configMINIMAL_STACK_SIZE */
+#define PERIOD_T_WDG_MS       100
+#define CANARY_MAX_MISS       3       /* 3 × 100 ms = 300 ms stall tolerance */
+#define WDG_BOOT_GRACE_TICKS  20      /* 2 s unconditional kick at boot */
+
+/* IWDG hardware parameters. LSI can drift 30–60 kHz; with these values
+ * the timeout ranges from 267 ms (60 kHz) to 533 ms (30 kHz). */
+#define IWDG_PRESCALER_VAL    IWDG_PRESCALER_64
+#define IWDG_RELOAD_VAL       250
+
+/* ========================================================================
+ * Overtemp sustained-count threshold
+ * ========================================================================
+ * The existing `overtemp` boolean still kills heater output immediately
+ * on the first sample above OVERTEMP_HARD_C. This counter only gates the
+ * terminal FAULT transition so noise spikes don't trigger a power-cycle
+ * requirement. [W7] */
+
+#define OVERTEMP_SUSTAIN_COUNT  20    /* 20 × 50 ms = 1 s */
+
+/* ========================================================================
+ * T_ML sensor failure + I2C bus recovery
+ * ======================================================================== */
+
+#define ML_SENSOR_FAIL_LIMIT   40    /* 40 × 50 ms = 2 s */
+#define I2C_MAX_RECOVERY        3    /* max bus recovery attempts per event */
 
 #endif /* APP_CONFIG_H */
