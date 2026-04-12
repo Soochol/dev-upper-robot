@@ -184,8 +184,9 @@ void t_ml_run(void *arg)
                 } else {
                     /* [W2] Mutex timeout — recovery impossible. Send FAULT. */
                     fault_req_t freq = {
-                        .reason = FAULT_REASON_FSR_TIMEOUT,
-                        .pad = {0,0,0}
+                        .reason = (fsr_fail_count >= ML_SENSOR_FAIL_LIMIT)
+                                  ? FAULT_REASON_FSR_TIMEOUT
+                                  : FAULT_REASON_IMU_TIMEOUT,
                     };
                     (void)xQueueSendToBack(q_fault_req, &freq, 0);
                     fsr_fail_count = 0;
