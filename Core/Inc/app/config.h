@@ -32,7 +32,7 @@
  * = 2) so over-allocation is the safe default during bring-up; we shrink
  * after measuring uxTaskGetStackHighWaterMark in Phase 6. */
 #define STK_T_STATE_WORDS   (384 / 4)
-#define STK_T_PID_WORDS     (512 / 4)
+#define STK_T_PID_WORDS     (768 / 4)
 #define STK_T_ML_WORDS      (4096 / 4)   /* 4096: extra headroom for score() soft-float */
 #define STK_T_LOGGER_WORDS  (512 / 4)
 
