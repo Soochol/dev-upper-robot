@@ -123,10 +123,6 @@ void t_ml_run(void *arg)
             fsr_st = ads1115_read(&hi2c1, &fsr_raw);
             xSemaphoreGive(mtx_i2c1);
         }
-        /* Use last valid FSR on any failure (I2C error OR mutex timeout).
-         * Without this, fsr_raw=0 on mutex timeout would cause a false
-         * FORCE_DOWN via the threshold check (0 < FSR_THRESHOLD_DOWN_RAW). */
-        fsr_raw = last_valid_fsr;
 
         /* ---- 1a. Sensor failure tracking ----
          * Keep last valid values on failure (prevents false triggers).
