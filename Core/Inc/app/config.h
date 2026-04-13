@@ -55,7 +55,7 @@
 /* Temperature setpoints (degrees Celsius) */
 #define TEMP_ACTIVE_C           60   /* FORCE_UP target */
 #define TEMP_COOL_C             25   /* FORCE_DOWN target (test: fan off) */
-#define OVERTEMP_HARD_C         80   /* heater element absolute max (FAULT) */
+#define OVERTEMP_HARD_C        100   /* heater element absolute max (FAULT) */
 #define TEMP_DEADBAND_C          2   /* ±2°C: within this range = target reached */
 
 /* Fan duty cycle (%) — state table default. t_pid.c overrides based on
