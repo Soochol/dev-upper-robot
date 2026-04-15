@@ -260,7 +260,7 @@ void sd_logger_write_row(uint32_t timestamp_ms,
     int32_t tx100 = (int32_t)(tilt_x * 100.0f);
     int32_t ty100 = (int32_t)(tilt_y * 100.0f);
 
-    char row[80];
+    char row[96];
     char *p = row;
     p = append_u32(p, timestamp_ms); *p++ = ',';
     p = append_i32(p, (int32_t)fsr_raw); *p++ = ',';

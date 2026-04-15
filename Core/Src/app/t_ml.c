@@ -116,18 +116,20 @@ void t_ml_run(void *arg)
         imu_raw_t imu = {0};
         int16_t   fsr_raw = 0;
         HAL_StatusTypeDef imu_st = HAL_ERROR;
+        static int16_t last_valid_fsr = 0;
 
         if (xSemaphoreTake(mtx_i2c1, pdMS_TO_TICKS(10)) == pdTRUE) {
             imu_st = icm42670p_read(&hi2c1, &imu);
-            static int16_t last_valid_fsr = 0;
             HAL_StatusTypeDef fsr_st = ads1115_read(&hi2c1, &fsr_raw);
             if (fsr_st == HAL_OK) {
                 last_valid_fsr = fsr_raw;
-            } else {
-                fsr_raw = last_valid_fsr;
             }
             xSemaphoreGive(mtx_i2c1);
         }
+        /* Use last valid FSR on any failure (I2C error OR mutex timeout).
+         * Without this, fsr_raw=0 on mutex timeout would cause a false
+         * FORCE_DOWN via the threshold check (0 < FSR_THRESHOLD_DOWN_RAW). */
+        fsr_raw = last_valid_fsr;
 
         /* ---- 2. Feature extraction: tilt from accel ---- */
         float tilt_x = 0.0f, tilt_y = 0.0f;

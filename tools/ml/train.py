@@ -233,6 +233,13 @@ def main():
     c_code = c_code.replace('(double[]){0.0, 1.0}', '_leaf_up')
     # --- Convert double → float for Cortex-M3 (no FPU) ---
     c_code = c_code.replace('double', 'float')
+    # Add 'f' suffix to all float literals in comparisons and compound
+    # literals. Without this, bare literals like 17640.03125 are double
+    # in C, causing implicit float→double promotion in every comparison.
+    import re
+    c_code = re.sub(r'(<= |>= )(-?[0-9]+\.[0-9]+)(?!f)', r'\1\2f', c_code)
+    c_code = re.sub(r'(\{)(-?[0-9]+\.[0-9]+)(?!f)', r'\1\2f', c_code)
+    c_code = re.sub(r'(, )(-?[0-9]+\.[0-9]+)(?!f)', r'\1\2f', c_code)
     # m2cgen may emit 'inf' for unbounded splits — define it for C.
     c_code = c_code.replace('\ninf\n', '\nINFINITY\n')
     needs_inf = 'inf' in c_code
