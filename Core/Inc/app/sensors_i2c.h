@@ -146,4 +146,26 @@ HAL_StatusTypeDef ads1115_init(I2C_HandleTypeDef *hi2c);
  */
 HAL_StatusTypeDef ads1115_read(I2C_HandleTypeDef *hi2c, int16_t *out_raw);
 
+/* ========================================================================
+ * I2C bus recovery
+ * ======================================================================== */
+
+/**
+ * @brief  Attempt I2C1 bus recovery via SCL clock toggle.
+ *
+ * Recovers from two failure modes:
+ *   - MCU side: HAL I2C state machine stuck in HAL_BUSY/HAL_ERROR
+ *     after a communication disruption (e.g., SDA glitch). Fixed by
+ *     HAL_I2C_DeInit + HAL_I2C_Init.
+ *   - Sensor side: a slave device holding SDA low (stuck mid-byte).
+ *     Fixed by toggling SCL 9 times so the slave completes its byte
+ *     and releases SDA.
+ *
+ * Must be called with mtx_i2c1 held [C2]. The caller should test
+ * sensor reads immediately after this returns to verify recovery.
+ *
+ * @param  hi2c  I2C handle (always &hi2c1 in this project).
+ */
+void i2c1_bus_recover(I2C_HandleTypeDef *hi2c);
+
 #endif /* APP_SENSORS_I2C_H */

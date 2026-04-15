@@ -60,6 +60,7 @@ TaskHandle_t h_t_state;
 TaskHandle_t h_t_pid;
 TaskHandle_t h_t_ml;
 TaskHandle_t h_t_logger;
+TaskHandle_t h_t_wdg;
 
 /* PI mutex for the I2C1 bus shared by T_PID (IR sensors) and T_ML
  * (ICM42670P + ADS1115). Created with xSemaphoreCreateMutex() so priority
@@ -84,6 +85,12 @@ QueueHandle_t q_fault_req;
  * makes single-word reads atomic on Cortex-M3 — see plan A8. */
 volatile uint32_t g_fsm_state = 0;  /* FSM_FORCE_DOWN */
 
+/* Canary counters for IWDG watchdog. Each task increments its counter at
+ * the end of its main loop. T_WDG reads all three every 100 ms. */
+volatile uint32_t g_canary_state = 0;
+volatile uint32_t g_canary_pid   = 0;
+volatile uint32_t g_canary_ml    = 0;
+
 /* USER CODE END Variables */
 osThreadId defaultTaskHandle;
 
@@ -97,6 +104,7 @@ void t_state_run (void *arg);
 void t_pid_run   (void *arg);
 void t_ml_run    (void *arg);
 void t_logger_run(void *arg);
+void t_wdg_run   (void *arg);
 
 /* USER CODE END FunctionPrototypes */
 
@@ -242,6 +250,9 @@ void MX_FREERTOS_Init(void) {
   ok = xTaskCreate(t_logger_run, "T_LOGGER", STK_T_LOGGER_WORDS,
                    NULL, PRIO_T_LOGGER, &h_t_logger);
   configASSERT(ok == pdPASS);
+  ok = xTaskCreate(t_wdg_run,   "T_WDG",    STK_T_WDG_WORDS,
+                   NULL, PRIO_T_WDG,    &h_t_wdg);
+  configASSERT(ok == pdPASS);
   /* USER CODE END RTOS_THREADS */
 
 }
@@ -300,6 +311,9 @@ void StartDefaultTask(void const * argument)
           " pid=", (uint32_t)uxTaskGetStackHighWaterMark(h_t_pid),
           " ml=",  (uint32_t)uxTaskGetStackHighWaterMark(h_t_ml),
           " log=", (uint32_t)uxTaskGetStackHighWaterMark(h_t_logger));
+      /* [W8] T_WDG uses minimal stack — monitor watermark closely. */
+      rtt_log_kv("[hb:stk] wdg=",
+          (uint32_t)uxTaskGetStackHighWaterMark(h_t_wdg));
     }
 
 #if PHASE2_AUTO_TRIGGER
