@@ -22,7 +22,7 @@
 static volatile bool s_muted = false;
 
 /* Append a NUL-terminated string to dst, returning the new write pointer. */
-static char *append_str(char *dst, const char *src)
+char *append_str(char *dst, const char *src)
 {
     if (src == 0) return dst;
     while (*src) *dst++ = *src++;
@@ -30,7 +30,7 @@ static char *append_str(char *dst, const char *src)
 }
 
 /* Append a uint32_t in decimal form, returning the new write pointer. */
-static char *append_u32(char *dst, uint32_t v)
+char *append_u32(char *dst, uint32_t v)
 {
     char tmp[11];
     int  n = 0;
@@ -50,7 +50,7 @@ static char *append_u32(char *dst, uint32_t v)
 }
 
 /* Append an int32_t in decimal form (with '-' prefix if negative). */
-static char *append_i32(char *dst, int32_t v)
+char *append_i32(char *dst, int32_t v)
 {
     if (v < 0) {
         *dst++ = '-';

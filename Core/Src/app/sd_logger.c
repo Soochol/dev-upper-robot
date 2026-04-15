@@ -23,7 +23,6 @@
 #include "FreeRTOS.h"
 #include "task.h"
 
-#include <stdio.h>
 #include <string.h>
 
 /* ------------------------------------------------------------------ */
@@ -190,7 +189,16 @@ bool sd_logger_start(void)
 
     /* Build filename: ml_000.csv .. ml_999.csv */
     char fname[16];
-    snprintf(fname, sizeof(fname), "ml_%03u.csv", s_next_index);
+    {
+        char *fp = fname;
+        fp = append_str(fp, "ml_");
+        /* 3-digit zero-padded index */
+        if (s_next_index < 100) *fp++ = '0';
+        if (s_next_index < 10)  *fp++ = '0';
+        fp = append_u32(fp, s_next_index);
+        fp = append_str(fp, ".csv");
+        *fp = '\0';
+    }
 
     sd_dbg_step = 20;
     FRESULT fr = f_open(&s_file, fname, FA_WRITE | FA_CREATE_ALWAYS);
@@ -253,15 +261,22 @@ void sd_logger_write_row(uint32_t timestamp_ms,
     int32_t ty100 = (int32_t)(tilt_y * 100.0f);
 
     char row[80];
-    int n = snprintf(row, sizeof(row),
-                     "%lu,%d,%d,%d,%d,%d,%d,%d,%ld,%ld\n",
-                     (unsigned long)timestamp_ms,
-                     (int)fsr_raw,
-                     (int)ax, (int)ay, (int)az,
-                     (int)gx, (int)gy, (int)gz,
-                     (long)tx100, (long)ty100);
-    if (n > 0 && n < (int)sizeof(row)) {
-        buf_append(row, (uint16_t)n);
+    char *p = row;
+    p = append_u32(p, timestamp_ms); *p++ = ',';
+    p = append_i32(p, (int32_t)fsr_raw); *p++ = ',';
+    p = append_i32(p, (int32_t)ax); *p++ = ',';
+    p = append_i32(p, (int32_t)ay); *p++ = ',';
+    p = append_i32(p, (int32_t)az); *p++ = ',';
+    p = append_i32(p, (int32_t)gx); *p++ = ',';
+    p = append_i32(p, (int32_t)gy); *p++ = ',';
+    p = append_i32(p, (int32_t)gz); *p++ = ',';
+    p = append_i32(p, tx100); *p++ = ',';
+    p = append_i32(p, ty100);
+    *p++ = '\n';
+
+    uint16_t len = (uint16_t)(p - row);
+    if (len < sizeof(row)) {
+        buf_append(row, len);
     }
 }
 
@@ -296,9 +311,11 @@ void sd_logger_dump_rtt(void)
     /* Framing start marker. */
     {
         char marker[48];
-        int n = snprintf(marker, sizeof(marker),
-                         "[sd:dump:start:%s]\n", s_last_fname);
-        if (n > 0) rtt_write_blocking(marker, (unsigned)n);
+        char *mp = marker;
+        mp = append_str(mp, "[sd:dump:start:");
+        mp = append_str(mp, s_last_fname);
+        mp = append_str(mp, "]\n");
+        rtt_write_blocking(marker, (unsigned)(mp - marker));
     }
 
     /* Stream file in chunks. */
