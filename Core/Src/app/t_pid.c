@@ -181,7 +181,7 @@ void t_pid_run(void *arg)
 
         } else if (snap_state == FSM_FORCE_DOWN) {
             float err = measurement - (float)current_cmd.setpoint_c;
-            fan_pct = (ir_ok && err > (float)TEMP_DEADBAND_C) ? 50 : 0;
+            fan_pct = (ir_ok && err > (float)TEMP_DEADBAND_C) ? FAN_DUTY_COOLDOWN_PCT : 0;
         }
 
         /* ---- 5a. Heater output slew-rate limit ---- */

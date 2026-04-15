@@ -64,6 +64,11 @@
 #define FAN_DUTY_FORCE_DOWN     0
 #define FAN_DUTY_FAULT          0
 
+/* Active cooling duty (%) when temperature is above deadband during
+ * FORCE_DOWN. Distinct from FAN_DUTY_FORCE_DOWN which is the state
+ * table default — this override kicks in only while actively cooling. */
+#define FAN_DUTY_COOLDOWN_PCT   50
+
 /* Safety net timeout (ms). FORCE_UP only — heater-on state must not be
  * forgotten by the trigger provider. FORCE_DOWN has no timeout (it is
  * the boot-time idle state and may wait for a trigger forever). On
