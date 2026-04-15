@@ -33,6 +33,7 @@
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
 #include "SEGGER_RTT.h"
+#include "iwdg.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -163,6 +164,14 @@ int main(void)
     printf("ERR: HAL_ADC_Start_DMA failed\r\n");
     Error_Handler();
   }
+
+  /* --- 4. Hardware watchdog ------------------------------------------------
+   * Start IWDG last in the init sequence so the watchdog window covers only
+   * the FreeRTOS scheduler launch onward, not the peripheral bring-up above.
+   * defaultTask refreshes every 1 s; timeout is ~4 s. If the scheduler hangs
+   * (all tasks blocked or starved), the heater output will be cut by reset. */
+  MX_IWDG_Init();
+  printf("IWDG armed (timeout ~4s)\r\n");
   /* USER CODE END 2 */
 
   /* Call init function for freertos objects (in cmsis_os2.c) */

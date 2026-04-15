@@ -32,6 +32,7 @@
 #include "app/ipc.h"
 #include "app/fsm.h"
 #include "app/rtt_log.h"
+#include "iwdg.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -317,6 +318,7 @@ void StartDefaultTask(void const * argument)
     }
 #endif
 
+    HAL_IWDG_Refresh(&hiwdg);
     vTaskDelay(pdMS_TO_TICKS(PERIOD_HEARTBEAT_MS));
   }
   /* USER CODE END StartDefaultTask */
