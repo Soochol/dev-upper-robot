@@ -13,7 +13,7 @@ Pipeline:
     5. Export model to C code via m2cgen → model_rf.c
 
 The generated model_rf.c contains a single function:
-    void score(double *input, double *output);
+    void score(float *input, float *output);
 that takes 9 features and outputs 2 class probabilities.
 Copy this into Core/Src/app/trigger_ml.c to deploy.
 """
@@ -231,17 +231,19 @@ def main():
     # (Flash), costing zero stack at runtime.
     c_code = c_code.replace('(double[]){1.0, 0.0}', '_leaf_down')
     c_code = c_code.replace('(double[]){0.0, 1.0}', '_leaf_up')
+    # --- Convert double → float for Cortex-M3 (no FPU) ---
+    c_code = c_code.replace('double', 'float')
     # m2cgen may emit 'inf' for unbounded splits — define it for C.
     c_code = c_code.replace('\ninf\n', '\nINFINITY\n')
     needs_inf = 'inf' in c_code
     static_consts = (
         "#include <math.h>\n"
         "#define inf INFINITY\n\n"
-        "static const double _leaf_down[2] = {1.0, 0.0};\n"
-        "static const double _leaf_up[2]   = {0.0, 1.0};\n\n"
+        "static const float _leaf_down[2] = {1.0f, 0.0f};\n"
+        "static const float _leaf_up[2]   = {0.0f, 1.0f};\n\n"
     ) if needs_inf else (
-        "static const double _leaf_down[2] = {1.0, 0.0};\n"
-        "static const double _leaf_up[2]   = {0.0, 1.0};\n\n"
+        "static const float _leaf_down[2] = {1.0f, 0.0f};\n"
+        "static const float _leaf_up[2]   = {0.0f, 1.0f};\n\n"
     )
 
     out_path = args.output
@@ -252,8 +254,8 @@ def main():
         f.write(f" * Samples: {len(X)}, Features: {len(FEATURE_NAMES)}\n")
         f.write(f" * CV accuracy: {scores.mean():.3f}\n")
         f.write(" *\n")
-        f.write(" * Input: double[9] — feature vector (see FEATURE_NAMES)\n")
-        f.write(" * Output: double[2] — [P(FORCE_DOWN), P(FORCE_UP)]\n")
+        f.write(" * Input: float[9] — feature vector (see FEATURE_NAMES)\n")
+        f.write(" * Output: float[2] — [P(FORCE_DOWN), P(FORCE_UP)]\n")
         f.write(" */\n\n")
         f.write(static_consts)
         f.write(c_code)

@@ -3,63 +3,63 @@
  * Samples: 34629, Features: 9
  * CV accuracy: 0.986
  *
- * Input: double[9] — feature vector (see FEATURE_NAMES)
- * Output: double[2] — [P(FORCE_DOWN), P(FORCE_UP)]
+ * Input: float[9] — feature vector (see FEATURE_NAMES)
+ * Output: float[2] — [P(FORCE_DOWN), P(FORCE_UP)]
  */
 
 #include <math.h>
 #define inf INFINITY
 
-static const double _leaf_down[2] = {1.0, 0.0};
-static const double _leaf_up[2]   = {0.0, 1.0};
+static const float _leaf_down[2] = {1.0, 0.0};
+static const float _leaf_up[2]   = {0.0, 1.0};
 
 #include <string.h>
-void add_vectors(double *v1, double *v2, int size, double *result) {
+void add_vectors(float *v1, float *v2, int size, float *result) {
     for(int i = 0; i < size; ++i)
         result[i] = v1[i] + v2[i];
 }
-void mul_vector_number(double *v1, double num, int size, double *result) {
+void mul_vector_number(float *v1, float num, int size, float *result) {
     for(int i = 0; i < size; ++i)
         result[i] = v1[i] * num;
 }
-void score(double * input, double * output) {
-    double var0[2];
-    double var1[2];
-    double var2[2];
-    double var3[2];
-    double var4[2];
-    double var5[2];
+void score(float * input, float * output) {
+    float var0[2];
+    float var1[2];
+    float var2[2];
+    float var3[2];
+    float var4[2];
+    float var5[2];
     if (input[0] <= 17640.03125) {
         if (input[5] <= 140.06166076660156) {
             if (input[6] <= -2.0894073247909546) {
                 if (input[7] <= -0.24775688350200653) {
-                    memcpy(var5, _leaf_down, 2 * sizeof(double));
+                    memcpy(var5, _leaf_down, 2 * sizeof(float));
                 } else {
-                    memcpy(var5, _leaf_up, 2 * sizeof(double));
+                    memcpy(var5, _leaf_up, 2 * sizeof(float));
                 }
             } else {
                 if (input[5] <= 84.86213684082031) {
                     if (input[5] <= 70.56861114501953) {
                         if (input[6] <= -1.8924666047096252) {
-                            memcpy(var5, (double[]){0.8709677419354839, 0.12903225806451613}, 2 * sizeof(double));
+                            memcpy(var5, (float[]){0.8709677419354839, 0.12903225806451613}, 2 * sizeof(float));
                         } else {
-                            memcpy(var5, (double[]){0.9978189749182116, 0.0021810250817884407}, 2 * sizeof(double));
+                            memcpy(var5, (float[]){0.9978189749182116, 0.0021810250817884407}, 2 * sizeof(float));
                         }
                     } else {
                         if (input[7] <= 0.9561827778816223) {
-                            memcpy(var5, (double[]){0.980349344978166, 0.019650655021834062}, 2 * sizeof(double));
+                            memcpy(var5, (float[]){0.980349344978166, 0.019650655021834062}, 2 * sizeof(float));
                         } else {
-                            memcpy(var5, (double[]){0.3157894736842105, 0.6842105263157895}, 2 * sizeof(double));
+                            memcpy(var5, (float[]){0.3157894736842105, 0.6842105263157895}, 2 * sizeof(float));
                         }
                     }
                 } else {
                     if (input[8] <= 1.8700428009033203) {
-                        memcpy(var5, _leaf_down, 2 * sizeof(double));
+                        memcpy(var5, _leaf_down, 2 * sizeof(float));
                     } else {
                         if (input[6] <= -1.26949143409729) {
-                            memcpy(var5, (double[]){0.2222222222222222, 0.7777777777777778}, 2 * sizeof(double));
+                            memcpy(var5, (float[]){0.2222222222222222, 0.7777777777777778}, 2 * sizeof(float));
                         } else {
-                            memcpy(var5, (double[]){0.8333333333333334, 0.16666666666666666}, 2 * sizeof(double));
+                            memcpy(var5, (float[]){0.8333333333333334, 0.16666666666666666}, 2 * sizeof(float));
                         }
                     }
                 }
@@ -69,43 +69,43 @@ void score(double * input, double * output) {
                 if (input[1] <= -6.651726722717285) {
                     if (input[6] <= 0.13324502110481262) {
                         if (input[6] <= 0.040191980078816414) {
-                            memcpy(var5, (double[]){0.3132530120481928, 0.6867469879518072}, 2 * sizeof(double));
+                            memcpy(var5, (float[]){0.3132530120481928, 0.6867469879518072}, 2 * sizeof(float));
                         } else {
-                            memcpy(var5, (double[]){0.041237113402061855, 0.9587628865979382}, 2 * sizeof(double));
+                            memcpy(var5, (float[]){0.041237113402061855, 0.9587628865979382}, 2 * sizeof(float));
                         }
                     } else {
-                        memcpy(var5, _leaf_down, 2 * sizeof(double));
+                        memcpy(var5, _leaf_down, 2 * sizeof(float));
                     }
                 } else {
                     if (input[3] <= 0.00445556640625) {
                         if (input[1] <= -5.711039304733276) {
-                            memcpy(var5, (double[]){0.6814159292035398, 0.3185840707964602}, 2 * sizeof(double));
+                            memcpy(var5, (float[]){0.6814159292035398, 0.3185840707964602}, 2 * sizeof(float));
                         } else {
-                            memcpy(var5, (double[]){0.9897172236503856, 0.010282776349614395}, 2 * sizeof(double));
+                            memcpy(var5, (float[]){0.9897172236503856, 0.010282776349614395}, 2 * sizeof(float));
                         }
                     } else {
                         if (input[1] <= 9.459369659423828) {
-                            memcpy(var5, (double[]){0.8963254593175853, 0.1036745406824147}, 2 * sizeof(double));
+                            memcpy(var5, (float[]){0.8963254593175853, 0.1036745406824147}, 2 * sizeof(float));
                         } else {
-                            memcpy(var5, _leaf_up, 2 * sizeof(double));
+                            memcpy(var5, _leaf_up, 2 * sizeof(float));
                         }
                     }
                 }
             } else {
                 if (input[8] <= 2.0030694007873535) {
-                    memcpy(var5, _leaf_down, 2 * sizeof(double));
+                    memcpy(var5, _leaf_down, 2 * sizeof(float));
                 } else {
                     if (input[6] <= -0.0479336716234684) {
                         if (input[4] <= 15763.37109375) {
-                            memcpy(var5, (double[]){0.002881844380403458, 0.9971181556195965}, 2 * sizeof(double));
+                            memcpy(var5, (float[]){0.002881844380403458, 0.9971181556195965}, 2 * sizeof(float));
                         } else {
-                            memcpy(var5, (double[]){0.2857142857142857, 0.7142857142857143}, 2 * sizeof(double));
+                            memcpy(var5, (float[]){0.2857142857142857, 0.7142857142857143}, 2 * sizeof(float));
                         }
                     } else {
                         if (input[2] <= -34.625701904296875) {
-                            memcpy(var5, (double[]){0.012658227848101266, 0.9873417721518988}, 2 * sizeof(double));
+                            memcpy(var5, (float[]){0.012658227848101266, 0.9873417721518988}, 2 * sizeof(float));
                         } else {
-                            memcpy(var5, (double[]){0.6076388888888888, 0.3923611111111111}, 2 * sizeof(double));
+                            memcpy(var5, (float[]){0.6076388888888888, 0.3923611111111111}, 2 * sizeof(float));
                         }
                     }
                 }
@@ -117,43 +117,43 @@ void score(double * input, double * output) {
                 if (input[1] <= 18.60145627707243) {
                     if (input[1] <= -6.094931364059448) {
                         if (input[7] <= 0.8700507283210754) {
-                            memcpy(var5, (double[]){0.1297709923664122, 0.8702290076335878}, 2 * sizeof(double));
+                            memcpy(var5, (float[]){0.1297709923664122, 0.8702290076335878}, 2 * sizeof(float));
                         } else {
-                            memcpy(var5, (double[]){0.7818181818181819, 0.21818181818181817}, 2 * sizeof(double));
+                            memcpy(var5, (float[]){0.7818181818181819, 0.21818181818181817}, 2 * sizeof(float));
                         }
                     } else {
                         if (input[2] <= -8.513645887374878) {
-                            memcpy(var5, _leaf_up, 2 * sizeof(double));
+                            memcpy(var5, _leaf_up, 2 * sizeof(float));
                         } else {
-                            memcpy(var5, _leaf_down, 2 * sizeof(double));
+                            memcpy(var5, _leaf_down, 2 * sizeof(float));
                         }
                     }
                 } else {
                     if (input[1] <= 48.078142166137695) {
-                        memcpy(var5, _leaf_down, 2 * sizeof(double));
+                        memcpy(var5, _leaf_down, 2 * sizeof(float));
                     } else {
                         if (input[5] <= -115.61074829101562) {
-                            memcpy(var5, _leaf_down, 2 * sizeof(double));
+                            memcpy(var5, _leaf_down, 2 * sizeof(float));
                         } else {
-                            memcpy(var5, _leaf_up, 2 * sizeof(double));
+                            memcpy(var5, _leaf_up, 2 * sizeof(float));
                         }
                     }
                 }
             } else {
                 if (input[1] <= 40.58439826965332) {
-                    memcpy(var5, _leaf_up, 2 * sizeof(double));
+                    memcpy(var5, _leaf_up, 2 * sizeof(float));
                 } else {
                     if (input[7] <= 0.4915473014116287) {
                         if (input[5] <= -121.22160339355469) {
-                            memcpy(var5, (double[]){0.9852941176470589, 0.014705882352941176}, 2 * sizeof(double));
+                            memcpy(var5, (float[]){0.9852941176470589, 0.014705882352941176}, 2 * sizeof(float));
                         } else {
-                            memcpy(var5, _leaf_up, 2 * sizeof(double));
+                            memcpy(var5, _leaf_up, 2 * sizeof(float));
                         }
                     } else {
                         if (input[6] <= 0.16867835819721222) {
-                            memcpy(var5, (double[]){0.17886178861788618, 0.8211382113821138}, 2 * sizeof(double));
+                            memcpy(var5, (float[]){0.17886178861788618, 0.8211382113821138}, 2 * sizeof(float));
                         } else {
-                            memcpy(var5, (double[]){0.005628517823639775, 0.9943714821763602}, 2 * sizeof(double));
+                            memcpy(var5, (float[]){0.005628517823639775, 0.9943714821763602}, 2 * sizeof(float));
                         }
                     }
                 }
@@ -161,61 +161,61 @@ void score(double * input, double * output) {
         } else {
             if (input[8] <= 2.307979941368103) {
                 if (input[2] <= 3.4134693294763565) {
-                    memcpy(var5, _leaf_down, 2 * sizeof(double));
+                    memcpy(var5, _leaf_down, 2 * sizeof(float));
                 } else {
-                    memcpy(var5, _leaf_up, 2 * sizeof(double));
+                    memcpy(var5, _leaf_up, 2 * sizeof(float));
                 }
             } else {
                 if (input[5] <= -450.94065856933594) {
                     if (input[2] <= 5.554298639297485) {
-                        memcpy(var5, _leaf_up, 2 * sizeof(double));
+                        memcpy(var5, _leaf_up, 2 * sizeof(float));
                     } else {
-                        memcpy(var5, _leaf_down, 2 * sizeof(double));
+                        memcpy(var5, _leaf_down, 2 * sizeof(float));
                     }
                 } else {
                     if (input[6] <= inf) {
                         if (input[3] <= -0.08831787109375) {
-                            memcpy(var5, (double[]){0.11, 0.89}, 2 * sizeof(double));
+                            memcpy(var5, (float[]){0.11, 0.89}, 2 * sizeof(float));
                         } else {
-                            memcpy(var5, (double[]){0.0013253810470510272, 0.998674618952949}, 2 * sizeof(double));
+                            memcpy(var5, (float[]){0.0013253810470510272, 0.998674618952949}, 2 * sizeof(float));
                         }
                     } else {
-                        memcpy(var5, _leaf_down, 2 * sizeof(double));
+                        memcpy(var5, _leaf_down, 2 * sizeof(float));
                     }
                 }
             }
         }
     }
-    double var6[2];
+    float var6[2];
     if (input[7] <= 0.08224935084581375) {
         if (input[0] <= 16463.5634765625) {
             if (input[6] <= -0.013677133247256279) {
                 if (input[0] <= 10903.2216796875) {
                     if (input[0] <= 2998.7733154296875) {
                         if (input[5] <= 68.759521484375) {
-                            memcpy(var6, (double[]){0.9988726042841037, 0.0011273957158962795}, 2 * sizeof(double));
+                            memcpy(var6, (float[]){0.9988726042841037, 0.0011273957158962795}, 2 * sizeof(float));
                         } else {
-                            memcpy(var6, (double[]){0.9009009009009009, 0.0990990990990991}, 2 * sizeof(double));
+                            memcpy(var6, (float[]){0.9009009009009009, 0.0990990990990991}, 2 * sizeof(float));
                         }
                     } else {
                         if (input[4] <= 2743.5550537109375) {
-                            memcpy(var6, (double[]){0.558, 0.442}, 2 * sizeof(double));
+                            memcpy(var6, (float[]){0.558, 0.442}, 2 * sizeof(float));
                         } else {
-                            memcpy(var6, (double[]){0.9644636333444039, 0.03553636665559615}, 2 * sizeof(double));
+                            memcpy(var6, (float[]){0.9644636333444039, 0.03553636665559615}, 2 * sizeof(float));
                         }
                     }
                 } else {
                     if (input[5] <= -9.546708106994629) {
                         if (input[2] <= 5.772279739379883) {
-                            memcpy(var6, (double[]){0.734375, 0.265625}, 2 * sizeof(double));
+                            memcpy(var6, (float[]){0.734375, 0.265625}, 2 * sizeof(float));
                         } else {
-                            memcpy(var6, _leaf_down, 2 * sizeof(double));
+                            memcpy(var6, _leaf_down, 2 * sizeof(float));
                         }
                     } else {
                         if (input[8] <= 3.7848888635635376) {
-                            memcpy(var6, (double[]){0.5882352941176471, 0.4117647058823529}, 2 * sizeof(double));
+                            memcpy(var6, (float[]){0.5882352941176471, 0.4117647058823529}, 2 * sizeof(float));
                         } else {
-                            memcpy(var6, (double[]){0.04205607476635514, 0.9579439252336449}, 2 * sizeof(double));
+                            memcpy(var6, (float[]){0.04205607476635514, 0.9579439252336449}, 2 * sizeof(float));
                         }
                     }
                 }
@@ -223,55 +223,55 @@ void score(double * input, double * output) {
                 if (input[7] <= 0.049346836283802986) {
                     if (input[3] <= 0.04724491573870182) {
                         if (input[0] <= 5611.06982421875) {
-                            memcpy(var6, _leaf_down, 2 * sizeof(double));
+                            memcpy(var6, _leaf_down, 2 * sizeof(float));
                         } else {
-                            memcpy(var6, (double[]){0.9972587719298246, 0.0027412280701754384}, 2 * sizeof(double));
+                            memcpy(var6, (float[]){0.9972587719298246, 0.0027412280701754384}, 2 * sizeof(float));
                         }
                     } else {
                         if (input[5] <= 74.44355773925781) {
-                            memcpy(var6, _leaf_down, 2 * sizeof(double));
+                            memcpy(var6, _leaf_down, 2 * sizeof(float));
                         } else {
-                            memcpy(var6, (double[]){0.10526315789473684, 0.8947368421052632}, 2 * sizeof(double));
+                            memcpy(var6, (float[]){0.10526315789473684, 0.8947368421052632}, 2 * sizeof(float));
                         }
                     }
                 } else {
                     if (input[5] <= 342.4371337890625) {
-                        memcpy(var6, _leaf_down, 2 * sizeof(double));
+                        memcpy(var6, _leaf_down, 2 * sizeof(float));
                     } else {
-                        memcpy(var6, _leaf_up, 2 * sizeof(double));
+                        memcpy(var6, _leaf_up, 2 * sizeof(float));
                     }
                 }
             }
         } else {
             if (input[8] <= 2.194633364677429) {
                 if (input[2] <= 3.425615295767784) {
-                    memcpy(var6, _leaf_down, 2 * sizeof(double));
+                    memcpy(var6, _leaf_down, 2 * sizeof(float));
                 } else {
-                    memcpy(var6, _leaf_up, 2 * sizeof(double));
+                    memcpy(var6, _leaf_up, 2 * sizeof(float));
                 }
             } else {
                 if (input[3] <= -0.08689753338694572) {
                     if (input[8] <= 21.04524517059326) {
                         if (input[1] <= 7.4542694091796875) {
-                            memcpy(var6, _leaf_down, 2 * sizeof(double));
+                            memcpy(var6, _leaf_down, 2 * sizeof(float));
                         } else {
-                            memcpy(var6, _leaf_up, 2 * sizeof(double));
+                            memcpy(var6, _leaf_up, 2 * sizeof(float));
                         }
                     } else {
                         if (input[5] <= -327.5051803588867) {
-                            memcpy(var6, _leaf_down, 2 * sizeof(double));
+                            memcpy(var6, _leaf_down, 2 * sizeof(float));
                         } else {
-                            memcpy(var6, _leaf_up, 2 * sizeof(double));
+                            memcpy(var6, _leaf_up, 2 * sizeof(float));
                         }
                     }
                 } else {
                     if (input[1] <= -13.112994194030762) {
-                        memcpy(var6, _leaf_down, 2 * sizeof(double));
+                        memcpy(var6, _leaf_down, 2 * sizeof(float));
                     } else {
                         if (input[2] <= 10.753941059112549) {
-                            memcpy(var6, (double[]){0.006360745115856429, 0.9936392548841436}, 2 * sizeof(double));
+                            memcpy(var6, (float[]){0.006360745115856429, 0.9936392548841436}, 2 * sizeof(float));
                         } else {
-                            memcpy(var6, (double[]){0.2631578947368421, 0.7368421052631579}, 2 * sizeof(double));
+                            memcpy(var6, (float[]){0.2631578947368421, 0.7368421052631579}, 2 * sizeof(float));
                         }
                     }
                 }
@@ -283,25 +283,25 @@ void score(double * input, double * output) {
                 if (input[0] <= 8132.76513671875) {
                     if (input[1] <= -5.780107259750366) {
                         if (input[8] <= 37.033233642578125) {
-                            memcpy(var6, (double[]){0.9215686274509803, 0.0784313725490196}, 2 * sizeof(double));
+                            memcpy(var6, (float[]){0.9215686274509803, 0.0784313725490196}, 2 * sizeof(float));
                         } else {
-                            memcpy(var6, (double[]){0.4523809523809524, 0.5476190476190477}, 2 * sizeof(double));
+                            memcpy(var6, (float[]){0.4523809523809524, 0.5476190476190477}, 2 * sizeof(float));
                         }
                     } else {
                         if (input[1] <= -0.6488801538944244) {
-                            memcpy(var6, _leaf_down, 2 * sizeof(double));
+                            memcpy(var6, _leaf_down, 2 * sizeof(float));
                         } else {
-                            memcpy(var6, _leaf_up, 2 * sizeof(double));
+                            memcpy(var6, _leaf_up, 2 * sizeof(float));
                         }
                     }
                 } else {
                     if (input[2] <= -53.42205810546875) {
-                        memcpy(var6, _leaf_up, 2 * sizeof(double));
+                        memcpy(var6, _leaf_up, 2 * sizeof(float));
                     } else {
                         if (input[1] <= -6.810182809829712) {
-                            memcpy(var6, (double[]){0.10112359550561797, 0.898876404494382}, 2 * sizeof(double));
+                            memcpy(var6, (float[]){0.10112359550561797, 0.898876404494382}, 2 * sizeof(float));
                         } else {
-                            memcpy(var6, (double[]){0.6030534351145038, 0.3969465648854962}, 2 * sizeof(double));
+                            memcpy(var6, (float[]){0.6030534351145038, 0.3969465648854962}, 2 * sizeof(float));
                         }
                     }
                 }
@@ -309,41 +309,41 @@ void score(double * input, double * output) {
                 if (input[5] <= 786.5128479003906) {
                     if (input[4] <= 13907.68896484375) {
                         if (input[6] <= -0.04459922946989536) {
-                            memcpy(var6, _leaf_up, 2 * sizeof(double));
+                            memcpy(var6, _leaf_up, 2 * sizeof(float));
                         } else {
-                            memcpy(var6, (double[]){0.981651376146789, 0.01834862385321101}, 2 * sizeof(double));
+                            memcpy(var6, (float[]){0.981651376146789, 0.01834862385321101}, 2 * sizeof(float));
                         }
                     } else {
                         if (input[5] <= 121.97589111328125) {
-                            memcpy(var6, _leaf_down, 2 * sizeof(double));
+                            memcpy(var6, _leaf_down, 2 * sizeof(float));
                         } else {
-                            memcpy(var6, (double[]){0.9375, 0.0625}, 2 * sizeof(double));
+                            memcpy(var6, (float[]){0.9375, 0.0625}, 2 * sizeof(float));
                         }
                     }
                 } else {
-                    memcpy(var6, _leaf_up, 2 * sizeof(double));
+                    memcpy(var6, _leaf_up, 2 * sizeof(float));
                 }
             }
         } else {
             if (input[1] <= -6.056036710739136) {
                 if (input[2] <= -11.09997844696045) {
                     if (input[2] <= -62.49117660522461) {
-                        memcpy(var6, _leaf_up, 2 * sizeof(double));
+                        memcpy(var6, _leaf_up, 2 * sizeof(float));
                     } else {
                         if (input[1] <= -8.381664752960205) {
-                            memcpy(var6, (double[]){0.06666666666666667, 0.9333333333333333}, 2 * sizeof(double));
+                            memcpy(var6, (float[]){0.06666666666666667, 0.9333333333333333}, 2 * sizeof(float));
                         } else {
-                            memcpy(var6, (double[]){0.9533333333333334, 0.04666666666666667}, 2 * sizeof(double));
+                            memcpy(var6, (float[]){0.9533333333333334, 0.04666666666666667}, 2 * sizeof(float));
                         }
                     }
                 } else {
                     if (input[3] <= -0.139597550034523) {
-                        memcpy(var6, _leaf_down, 2 * sizeof(double));
+                        memcpy(var6, _leaf_down, 2 * sizeof(float));
                     } else {
                         if (input[7] <= 0.6773056387901306) {
-                            memcpy(var6, _leaf_up, 2 * sizeof(double));
+                            memcpy(var6, _leaf_up, 2 * sizeof(float));
                         } else {
-                            memcpy(var6, (double[]){0.3333333333333333, 0.6666666666666666}, 2 * sizeof(double));
+                            memcpy(var6, (float[]){0.3333333333333333, 0.6666666666666666}, 2 * sizeof(float));
                         }
                     }
                 }
@@ -351,25 +351,25 @@ void score(double * input, double * output) {
                 if (input[5] <= -147.3621063232422) {
                     if (input[8] <= 71.30221176147461) {
                         if (input[5] <= -168.33429718017578) {
-                            memcpy(var6, _leaf_down, 2 * sizeof(double));
+                            memcpy(var6, _leaf_down, 2 * sizeof(float));
                         } else {
-                            memcpy(var6, (double[]){0.8333333333333334, 0.16666666666666666}, 2 * sizeof(double));
+                            memcpy(var6, (float[]){0.8333333333333334, 0.16666666666666666}, 2 * sizeof(float));
                         }
                     } else {
-                        memcpy(var6, _leaf_up, 2 * sizeof(double));
+                        memcpy(var6, _leaf_up, 2 * sizeof(float));
                     }
                 } else {
                     if (input[5] <= -123.23533630371094) {
                         if (input[8] <= 53.01748085021973) {
-                            memcpy(var6, (double[]){0.6153846153846154, 0.38461538461538464}, 2 * sizeof(double));
+                            memcpy(var6, (float[]){0.6153846153846154, 0.38461538461538464}, 2 * sizeof(float));
                         } else {
-                            memcpy(var6, _leaf_up, 2 * sizeof(double));
+                            memcpy(var6, _leaf_up, 2 * sizeof(float));
                         }
                     } else {
                         if (input[5] <= -96.28018569946289) {
-                            memcpy(var6, (double[]){0.09259259259259259, 0.9074074074074074}, 2 * sizeof(double));
+                            memcpy(var6, (float[]){0.09259259259259259, 0.9074074074074074}, 2 * sizeof(float));
                         } else {
-                            memcpy(var6, _leaf_up, 2 * sizeof(double));
+                            memcpy(var6, _leaf_up, 2 * sizeof(float));
                         }
                     }
                 }
@@ -377,36 +377,36 @@ void score(double * input, double * output) {
         }
     }
     add_vectors(var5, var6, 2, var4);
-    double var7[2];
+    float var7[2];
     if (input[7] <= 0.08224935084581375) {
         if (input[6] <= -0.013295535929501057) {
             if (input[0] <= 10903.2216796875) {
                 if (input[4] <= 3823.50439453125) {
                     if (input[5] <= 96.37771987915039) {
                         if (input[1] <= 10.865747928619385) {
-                            memcpy(var7, (double[]){0.994086339444116, 0.0059136605558840925}, 2 * sizeof(double));
+                            memcpy(var7, (float[]){0.994086339444116, 0.0059136605558840925}, 2 * sizeof(float));
                         } else {
-                            memcpy(var7, (double[]){0.8554913294797688, 0.14450867052023122}, 2 * sizeof(double));
+                            memcpy(var7, (float[]){0.8554913294797688, 0.14450867052023122}, 2 * sizeof(float));
                         }
                     } else {
                         if (input[4] <= 2742.4019775390625) {
-                            memcpy(var7, (double[]){0.5062344139650873, 0.4937655860349127}, 2 * sizeof(double));
+                            memcpy(var7, (float[]){0.5062344139650873, 0.4937655860349127}, 2 * sizeof(float));
                         } else {
-                            memcpy(var7, (double[]){0.8333333333333334, 0.16666666666666666}, 2 * sizeof(double));
+                            memcpy(var7, (float[]){0.8333333333333334, 0.16666666666666666}, 2 * sizeof(float));
                         }
                     }
                 } else {
                     if (input[4] <= 4521.320556640625) {
                         if (input[0] <= 9683.20458984375) {
-                            memcpy(var7, (double[]){0.9787234042553191, 0.02127659574468085}, 2 * sizeof(double));
+                            memcpy(var7, (float[]){0.9787234042553191, 0.02127659574468085}, 2 * sizeof(float));
                         } else {
-                            memcpy(var7, (double[]){0.5, 0.5}, 2 * sizeof(double));
+                            memcpy(var7, (float[]){0.5, 0.5}, 2 * sizeof(float));
                         }
                     } else {
                         if (input[4] <= 4843.558349609375) {
-                            memcpy(var7, (double[]){0.990990990990991, 0.009009009009009009}, 2 * sizeof(double));
+                            memcpy(var7, (float[]){0.990990990990991, 0.009009009009009009}, 2 * sizeof(float));
                         } else {
-                            memcpy(var7, _leaf_down, 2 * sizeof(double));
+                            memcpy(var7, _leaf_down, 2 * sizeof(float));
                         }
                     }
                 }
@@ -414,25 +414,25 @@ void score(double * input, double * output) {
                 if (input[7] <= -0.0014499906683340669) {
                     if (input[0] <= 15660.08935546875) {
                         if (input[4] <= 17073.01171875) {
-                            memcpy(var7, (double[]){0.1065989847715736, 0.8934010152284264}, 2 * sizeof(double));
+                            memcpy(var7, (float[]){0.1065989847715736, 0.8934010152284264}, 2 * sizeof(float));
                         } else {
-                            memcpy(var7, (double[]){0.9183673469387755, 0.08163265306122448}, 2 * sizeof(double));
+                            memcpy(var7, (float[]){0.9183673469387755, 0.08163265306122448}, 2 * sizeof(float));
                         }
                     } else {
                         if (input[1] <= -13.112994194030762) {
-                            memcpy(var7, _leaf_down, 2 * sizeof(double));
+                            memcpy(var7, _leaf_down, 2 * sizeof(float));
                         } else {
-                            memcpy(var7, (double[]){0.018738288569643973, 0.981261711430356}, 2 * sizeof(double));
+                            memcpy(var7, (float[]){0.018738288569643973, 0.981261711430356}, 2 * sizeof(float));
                         }
                     }
                 } else {
                     if (input[8] <= 7.895484924316406) {
-                        memcpy(var7, _leaf_down, 2 * sizeof(double));
+                        memcpy(var7, _leaf_down, 2 * sizeof(float));
                     } else {
                         if (input[3] <= -0.1794281005859375) {
-                            memcpy(var7, _leaf_down, 2 * sizeof(double));
+                            memcpy(var7, _leaf_down, 2 * sizeof(float));
                         } else {
-                            memcpy(var7, _leaf_up, 2 * sizeof(double));
+                            memcpy(var7, _leaf_up, 2 * sizeof(float));
                         }
                     }
                 }
@@ -442,25 +442,25 @@ void score(double * input, double * output) {
                 if (input[3] <= 0.04895162582397461) {
                     if (input[7] <= 0.0587721336632967) {
                         if (input[7] <= 0.047824397683143616) {
-                            memcpy(var7, (double[]){0.9988307512423268, 0.001169248757673195}, 2 * sizeof(double));
+                            memcpy(var7, (float[]){0.9988307512423268, 0.001169248757673195}, 2 * sizeof(float));
                         } else {
-                            memcpy(var7, (double[]){0.8235294117647058, 0.17647058823529413}, 2 * sizeof(double));
+                            memcpy(var7, (float[]){0.8235294117647058, 0.17647058823529413}, 2 * sizeof(float));
                         }
                     } else {
                         if (input[0] <= 12454.87841796875) {
-                            memcpy(var7, _leaf_down, 2 * sizeof(double));
+                            memcpy(var7, _leaf_down, 2 * sizeof(float));
                         } else {
-                            memcpy(var7, _leaf_up, 2 * sizeof(double));
+                            memcpy(var7, _leaf_up, 2 * sizeof(float));
                         }
                     }
                 } else {
                     if (input[0] <= 8710.79345703125) {
-                        memcpy(var7, _leaf_down, 2 * sizeof(double));
+                        memcpy(var7, _leaf_down, 2 * sizeof(float));
                     } else {
                         if (input[7] <= -0.19498860090970993) {
-                            memcpy(var7, _leaf_up, 2 * sizeof(double));
+                            memcpy(var7, _leaf_up, 2 * sizeof(float));
                         } else {
-                            memcpy(var7, (double[]){0.5714285714285714, 0.42857142857142855}, 2 * sizeof(double));
+                            memcpy(var7, (float[]){0.5714285714285714, 0.42857142857142855}, 2 * sizeof(float));
                         }
                     }
                 }
@@ -468,25 +468,25 @@ void score(double * input, double * output) {
                 if (input[7] <= -0.0567626953125) {
                     if (input[0] <= 19946.908203125) {
                         if (input[1] <= 6.752883195877075) {
-                            memcpy(var7, _leaf_down, 2 * sizeof(double));
+                            memcpy(var7, _leaf_down, 2 * sizeof(float));
                         } else {
-                            memcpy(var7, _leaf_up, 2 * sizeof(double));
+                            memcpy(var7, _leaf_up, 2 * sizeof(float));
                         }
                     } else {
-                        memcpy(var7, _leaf_up, 2 * sizeof(double));
+                        memcpy(var7, _leaf_up, 2 * sizeof(float));
                     }
                 } else {
                     if (input[8] <= 18.281575202941895) {
                         if (input[6] <= 0.06749662756919861) {
-                            memcpy(var7, _leaf_down, 2 * sizeof(double));
+                            memcpy(var7, _leaf_down, 2 * sizeof(float));
                         } else {
-                            memcpy(var7, _leaf_up, 2 * sizeof(double));
+                            memcpy(var7, _leaf_up, 2 * sizeof(float));
                         }
                     } else {
                         if (input[7] <= -0.020187051966786385) {
-                            memcpy(var7, (double[]){0.3333333333333333, 0.6666666666666666}, 2 * sizeof(double));
+                            memcpy(var7, (float[]){0.3333333333333333, 0.6666666666666666}, 2 * sizeof(float));
                         } else {
-                            memcpy(var7, _leaf_up, 2 * sizeof(double));
+                            memcpy(var7, _leaf_up, 2 * sizeof(float));
                         }
                     }
                 }
@@ -496,37 +496,37 @@ void score(double * input, double * output) {
         if (input[6] <= 0.10731042921543121) {
             if (input[6] <= -0.18910322338342667) {
                 if (input[5] <= -229.24720764160156) {
-                    memcpy(var7, _leaf_down, 2 * sizeof(double));
+                    memcpy(var7, _leaf_down, 2 * sizeof(float));
                 } else {
-                    memcpy(var7, _leaf_up, 2 * sizeof(double));
+                    memcpy(var7, _leaf_up, 2 * sizeof(float));
                 }
             } else {
                 if (input[0] <= 18042.322265625) {
                     if (input[8] <= 75.56130599975586) {
                         if (input[5] <= 142.28009796142578) {
-                            memcpy(var7, (double[]){0.8923076923076924, 0.1076923076923077}, 2 * sizeof(double));
+                            memcpy(var7, (float[]){0.8923076923076924, 0.1076923076923077}, 2 * sizeof(float));
                         } else {
-                            memcpy(var7, (double[]){0.20821114369501467, 0.7917888563049853}, 2 * sizeof(double));
+                            memcpy(var7, (float[]){0.20821114369501467, 0.7917888563049853}, 2 * sizeof(float));
                         }
                     } else {
                         if (input[7] <= 0.8510706424713135) {
-                            memcpy(var7, (double[]){0.7428571428571429, 0.2571428571428571}, 2 * sizeof(double));
+                            memcpy(var7, (float[]){0.7428571428571429, 0.2571428571428571}, 2 * sizeof(float));
                         } else {
-                            memcpy(var7, (double[]){0.9747292418772563, 0.02527075812274368}, 2 * sizeof(double));
+                            memcpy(var7, (float[]){0.9747292418772563, 0.02527075812274368}, 2 * sizeof(float));
                         }
                     }
                 } else {
                     if (input[1] <= 26.993059158325195) {
                         if (input[5] <= -294.2466278076172) {
-                            memcpy(var7, (double[]){0.7878787878787878, 0.21212121212121213}, 2 * sizeof(double));
+                            memcpy(var7, (float[]){0.7878787878787878, 0.21212121212121213}, 2 * sizeof(float));
                         } else {
-                            memcpy(var7, (double[]){0.016553067185978577, 0.9834469328140214}, 2 * sizeof(double));
+                            memcpy(var7, (float[]){0.016553067185978577, 0.9834469328140214}, 2 * sizeof(float));
                         }
                     } else {
                         if (input[7] <= 0.49132175743579865) {
-                            memcpy(var7, (double[]){0.9318181818181818, 0.06818181818181818}, 2 * sizeof(double));
+                            memcpy(var7, (float[]){0.9318181818181818, 0.06818181818181818}, 2 * sizeof(float));
                         } else {
-                            memcpy(var7, (double[]){0.3448275862068966, 0.6551724137931034}, 2 * sizeof(double));
+                            memcpy(var7, (float[]){0.3448275862068966, 0.6551724137931034}, 2 * sizeof(float));
                         }
                     }
                 }
@@ -534,19 +534,19 @@ void score(double * input, double * output) {
         } else {
             if (input[3] <= -0.2559814453125) {
                 if (input[5] <= -141.7421875) {
-                    memcpy(var7, _leaf_down, 2 * sizeof(double));
+                    memcpy(var7, _leaf_down, 2 * sizeof(float));
                 } else {
                     if (input[0] <= 24869.990234375) {
                         if (input[7] <= 0.6392955482006073) {
-                            memcpy(var7, (double[]){0.75, 0.25}, 2 * sizeof(double));
+                            memcpy(var7, (float[]){0.75, 0.25}, 2 * sizeof(float));
                         } else {
-                            memcpy(var7, _leaf_up, 2 * sizeof(double));
+                            memcpy(var7, _leaf_up, 2 * sizeof(float));
                         }
                     } else {
                         if (input[6] <= 0.13056910037994385) {
-                            memcpy(var7, (double[]){0.010101010101010102, 0.98989898989899}, 2 * sizeof(double));
+                            memcpy(var7, (float[]){0.010101010101010102, 0.98989898989899}, 2 * sizeof(float));
                         } else {
-                            memcpy(var7, _leaf_up, 2 * sizeof(double));
+                            memcpy(var7, _leaf_up, 2 * sizeof(float));
                         }
                     }
                 }
@@ -554,56 +554,56 @@ void score(double * input, double * output) {
                 if (input[0] <= 9795.3125) {
                     if (input[1] <= -0.6203916370868683) {
                         if (input[5] <= 168.2402572631836) {
-                            memcpy(var7, _leaf_down, 2 * sizeof(double));
+                            memcpy(var7, _leaf_down, 2 * sizeof(float));
                         } else {
-                            memcpy(var7, (double[]){0.8994974874371859, 0.10050251256281408}, 2 * sizeof(double));
+                            memcpy(var7, (float[]){0.8994974874371859, 0.10050251256281408}, 2 * sizeof(float));
                         }
                     } else {
-                        memcpy(var7, _leaf_up, 2 * sizeof(double));
+                        memcpy(var7, _leaf_up, 2 * sizeof(float));
                     }
                 } else {
                     if (input[0] <= 12764.46533203125) {
                         if (input[3] <= -0.17057139426469803) {
-                            memcpy(var7, (double[]){0.038461538461538464, 0.9615384615384616}, 2 * sizeof(double));
+                            memcpy(var7, (float[]){0.038461538461538464, 0.9615384615384616}, 2 * sizeof(float));
                         } else {
-                            memcpy(var7, (double[]){0.5405405405405406, 0.4594594594594595}, 2 * sizeof(double));
+                            memcpy(var7, (float[]){0.5405405405405406, 0.4594594594594595}, 2 * sizeof(float));
                         }
                     } else {
-                        memcpy(var7, _leaf_up, 2 * sizeof(double));
+                        memcpy(var7, _leaf_up, 2 * sizeof(float));
                     }
                 }
             }
         }
     }
     add_vectors(var4, var7, 2, var3);
-    double var8[2];
+    float var8[2];
     if (input[3] <= -0.16837052255868912) {
         if (input[0] <= 10928.919921875) {
             if (input[7] <= 0.4143727868795395) {
                 if (input[7] <= 0.37829869985580444) {
-                    memcpy(var8, _leaf_down, 2 * sizeof(double));
+                    memcpy(var8, _leaf_down, 2 * sizeof(float));
                 } else {
                     if (input[2] <= -16.86703133583069) {
-                        memcpy(var8, _leaf_down, 2 * sizeof(double));
+                        memcpy(var8, _leaf_down, 2 * sizeof(float));
                     } else {
-                        memcpy(var8, _leaf_up, 2 * sizeof(double));
+                        memcpy(var8, _leaf_up, 2 * sizeof(float));
                     }
                 }
             } else {
                 if (input[4] <= 3630.438720703125) {
-                    memcpy(var8, _leaf_up, 2 * sizeof(double));
+                    memcpy(var8, _leaf_up, 2 * sizeof(float));
                 } else {
                     if (input[2] <= -48.80234146118164) {
                         if (input[3] <= -0.18123918026685715) {
-                            memcpy(var8, _leaf_up, 2 * sizeof(double));
+                            memcpy(var8, _leaf_up, 2 * sizeof(float));
                         } else {
-                            memcpy(var8, _leaf_down, 2 * sizeof(double));
+                            memcpy(var8, _leaf_down, 2 * sizeof(float));
                         }
                     } else {
                         if (input[2] <= -2.4992334842681885) {
-                            memcpy(var8, (double[]){0.983957219251337, 0.016042780748663103}, 2 * sizeof(double));
+                            memcpy(var8, (float[]){0.983957219251337, 0.016042780748663103}, 2 * sizeof(float));
                         } else {
-                            memcpy(var8, (double[]){0.030303030303030304, 0.9696969696969697}, 2 * sizeof(double));
+                            memcpy(var8, (float[]){0.030303030303030304, 0.9696969696969697}, 2 * sizeof(float));
                         }
                     }
                 }
@@ -613,35 +613,35 @@ void score(double * input, double * output) {
                 if (input[3] <= -0.48922428488731384) {
                     if (input[8] <= 31.406662940979004) {
                         if (input[0] <= 35512.73046875) {
-                            memcpy(var8, _leaf_down, 2 * sizeof(double));
+                            memcpy(var8, _leaf_down, 2 * sizeof(float));
                         } else {
-                            memcpy(var8, (double[]){0.5714285714285714, 0.42857142857142855}, 2 * sizeof(double));
+                            memcpy(var8, (float[]){0.5714285714285714, 0.42857142857142855}, 2 * sizeof(float));
                         }
                     } else {
                         if (input[5] <= -180.32302856445312) {
-                            memcpy(var8, _leaf_down, 2 * sizeof(double));
+                            memcpy(var8, _leaf_down, 2 * sizeof(float));
                         } else {
-                            memcpy(var8, _leaf_up, 2 * sizeof(double));
+                            memcpy(var8, _leaf_up, 2 * sizeof(float));
                         }
                     }
                 } else {
-                    memcpy(var8, _leaf_down, 2 * sizeof(double));
+                    memcpy(var8, _leaf_down, 2 * sizeof(float));
                 }
             } else {
                 if (input[6] <= -0.013158681686036289) {
-                    memcpy(var8, _leaf_down, 2 * sizeof(double));
+                    memcpy(var8, _leaf_down, 2 * sizeof(float));
                 } else {
                     if (input[0] <= 24749.072265625) {
                         if (input[5] <= -97.44658279418945) {
-                            memcpy(var8, (double[]){0.9230769230769231, 0.07692307692307693}, 2 * sizeof(double));
+                            memcpy(var8, (float[]){0.9230769230769231, 0.07692307692307693}, 2 * sizeof(float));
                         } else {
-                            memcpy(var8, _leaf_up, 2 * sizeof(double));
+                            memcpy(var8, _leaf_up, 2 * sizeof(float));
                         }
                     } else {
                         if (input[3] <= -0.5050944983959198) {
-                            memcpy(var8, _leaf_up, 2 * sizeof(double));
+                            memcpy(var8, _leaf_up, 2 * sizeof(float));
                         } else {
-                            memcpy(var8, (double[]){0.0013306719893546241, 0.9986693280106453}, 2 * sizeof(double));
+                            memcpy(var8, (float[]){0.0013306719893546241, 0.9986693280106453}, 2 * sizeof(float));
                         }
                     }
                 }
@@ -651,41 +651,41 @@ void score(double * input, double * output) {
         if (input[0] <= 15723.0107421875) {
             if (input[4] <= 1134.2373657226562) {
                 if (input[5] <= 149.44083404541016) {
-                    memcpy(var8, _leaf_down, 2 * sizeof(double));
+                    memcpy(var8, _leaf_down, 2 * sizeof(float));
                 } else {
                     if (input[8] <= 25.925687313079834) {
-                        memcpy(var8, _leaf_down, 2 * sizeof(double));
+                        memcpy(var8, _leaf_down, 2 * sizeof(float));
                     } else {
-                        memcpy(var8, _leaf_up, 2 * sizeof(double));
+                        memcpy(var8, _leaf_up, 2 * sizeof(float));
                     }
                 }
             } else {
                 if (input[8] <= 2.199890971183777) {
                     if (input[0] <= 15629.67333984375) {
                         if (input[8] <= 1.9027342200279236) {
-                            memcpy(var8, (double[]){0.9997274090227614, 0.0002725909772386534}, 2 * sizeof(double));
+                            memcpy(var8, (float[]){0.9997274090227614, 0.0002725909772386534}, 2 * sizeof(float));
                         } else {
-                            memcpy(var8, (double[]){0.9666666666666667, 0.03333333333333333}, 2 * sizeof(double));
+                            memcpy(var8, (float[]){0.9666666666666667, 0.03333333333333333}, 2 * sizeof(float));
                         }
                     } else {
                         if (input[2] <= 3.305887818336487) {
-                            memcpy(var8, _leaf_down, 2 * sizeof(double));
+                            memcpy(var8, _leaf_down, 2 * sizeof(float));
                         } else {
-                            memcpy(var8, _leaf_up, 2 * sizeof(double));
+                            memcpy(var8, _leaf_up, 2 * sizeof(float));
                         }
                     }
                 } else {
                     if (input[5] <= 83.03602981567383) {
                         if (input[2] <= -61.579484939575195) {
-                            memcpy(var8, _leaf_up, 2 * sizeof(double));
+                            memcpy(var8, _leaf_up, 2 * sizeof(float));
                         } else {
-                            memcpy(var8, (double[]){0.9929618768328445, 0.007038123167155425}, 2 * sizeof(double));
+                            memcpy(var8, (float[]){0.9929618768328445, 0.007038123167155425}, 2 * sizeof(float));
                         }
                     } else {
                         if (input[1] <= -6.635601758956909) {
-                            memcpy(var8, (double[]){0.30038022813688214, 0.6996197718631179}, 2 * sizeof(double));
+                            memcpy(var8, (float[]){0.30038022813688214, 0.6996197718631179}, 2 * sizeof(float));
                         } else {
-                            memcpy(var8, (double[]){0.7798423423423423, 0.22015765765765766}, 2 * sizeof(double));
+                            memcpy(var8, (float[]){0.7798423423423423, 0.22015765765765766}, 2 * sizeof(float));
                         }
                     }
                 }
@@ -695,90 +695,90 @@ void score(double * input, double * output) {
                 if (input[2] <= -1.843898594379425) {
                     if (input[1] <= -6.0673322677612305) {
                         if (input[0] <= 21142.0703125) {
-                            memcpy(var8, (double[]){0.676923076923077, 0.3230769230769231}, 2 * sizeof(double));
+                            memcpy(var8, (float[]){0.676923076923077, 0.3230769230769231}, 2 * sizeof(float));
                         } else {
-                            memcpy(var8, (double[]){0.029411764705882353, 0.9705882352941176}, 2 * sizeof(double));
+                            memcpy(var8, (float[]){0.029411764705882353, 0.9705882352941176}, 2 * sizeof(float));
                         }
                     } else {
                         if (input[0] <= 21375.1171875) {
-                            memcpy(var8, (double[]){0.16091954022988506, 0.8390804597701149}, 2 * sizeof(double));
+                            memcpy(var8, (float[]){0.16091954022988506, 0.8390804597701149}, 2 * sizeof(float));
                         } else {
-                            memcpy(var8, _leaf_up, 2 * sizeof(double));
+                            memcpy(var8, _leaf_up, 2 * sizeof(float));
                         }
                     }
                 } else {
                     if (input[8] <= 28.33874225616455) {
-                        memcpy(var8, _leaf_down, 2 * sizeof(double));
+                        memcpy(var8, _leaf_down, 2 * sizeof(float));
                     } else {
-                        memcpy(var8, _leaf_up, 2 * sizeof(double));
+                        memcpy(var8, _leaf_up, 2 * sizeof(float));
                     }
                 }
             } else {
                 if (input[0] <= 22667.2587890625) {
                     if (input[7] <= -0.14597921818494797) {
                         if (input[1] <= -13.08299446105957) {
-                            memcpy(var8, _leaf_down, 2 * sizeof(double));
+                            memcpy(var8, _leaf_down, 2 * sizeof(float));
                         } else {
-                            memcpy(var8, (double[]){0.00398406374501992, 0.9960159362549801}, 2 * sizeof(double));
+                            memcpy(var8, (float[]){0.00398406374501992, 0.9960159362549801}, 2 * sizeof(float));
                         }
                     } else {
                         if (input[3] <= -0.08600706234574318) {
-                            memcpy(var8, (double[]){0.8260869565217391, 0.17391304347826086}, 2 * sizeof(double));
+                            memcpy(var8, (float[]){0.8260869565217391, 0.17391304347826086}, 2 * sizeof(float));
                         } else {
-                            memcpy(var8, (double[]){0.030837004405286344, 0.9691629955947136}, 2 * sizeof(double));
+                            memcpy(var8, (float[]){0.030837004405286344, 0.9691629955947136}, 2 * sizeof(float));
                         }
                     }
                 } else {
-                    memcpy(var8, _leaf_up, 2 * sizeof(double));
+                    memcpy(var8, _leaf_up, 2 * sizeof(float));
                 }
             }
         }
     }
     add_vectors(var3, var8, 2, var2);
-    double var9[2];
+    float var9[2];
     if (input[7] <= 0.08224935084581375) {
         if (input[8] <= 11.159293174743652) {
             if (input[3] <= 0.04575815983116627) {
                 if (input[8] <= 2.7644697427749634) {
                     if (input[7] <= -0.20794659107923508) {
                         if (input[2] <= 8.13702392578125) {
-                            memcpy(var9, _leaf_up, 2 * sizeof(double));
+                            memcpy(var9, _leaf_up, 2 * sizeof(float));
                         } else {
-                            memcpy(var9, _leaf_down, 2 * sizeof(double));
+                            memcpy(var9, _leaf_down, 2 * sizeof(float));
                         }
                     } else {
                         if (input[7] <= -0.1902226060628891) {
-                            memcpy(var9, (double[]){0.9984025559105432, 0.001597444089456869}, 2 * sizeof(double));
+                            memcpy(var9, (float[]){0.9984025559105432, 0.001597444089456869}, 2 * sizeof(float));
                         } else {
-                            memcpy(var9, _leaf_down, 2 * sizeof(double));
+                            memcpy(var9, _leaf_down, 2 * sizeof(float));
                         }
                     }
                 } else {
                     if (input[6] <= -0.006160172168165445) {
                         if (input[0] <= 11216.708984375) {
-                            memcpy(var9, (double[]){0.9052264808362369, 0.09477351916376307}, 2 * sizeof(double));
+                            memcpy(var9, (float[]){0.9052264808362369, 0.09477351916376307}, 2 * sizeof(float));
                         } else {
-                            memcpy(var9, (double[]){0.13270142180094788, 0.8672985781990521}, 2 * sizeof(double));
+                            memcpy(var9, (float[]){0.13270142180094788, 0.8672985781990521}, 2 * sizeof(float));
                         }
                     } else {
                         if (input[0] <= 19686.6279296875) {
-                            memcpy(var9, (double[]){0.9990435198469632, 0.0009564801530368245}, 2 * sizeof(double));
+                            memcpy(var9, (float[]){0.9990435198469632, 0.0009564801530368245}, 2 * sizeof(float));
                         } else {
-                            memcpy(var9, _leaf_up, 2 * sizeof(double));
+                            memcpy(var9, _leaf_up, 2 * sizeof(float));
                         }
                     }
                 }
             } else {
                 if (input[2] <= 6.058598756790161) {
-                    memcpy(var9, _leaf_down, 2 * sizeof(double));
+                    memcpy(var9, _leaf_down, 2 * sizeof(float));
                 } else {
                     if (input[5] <= 3.3116821758449078) {
-                        memcpy(var9, _leaf_down, 2 * sizeof(double));
+                        memcpy(var9, _leaf_down, 2 * sizeof(float));
                     } else {
                         if (input[0] <= 10897.08642578125) {
-                            memcpy(var9, (double[]){0.84, 0.16}, 2 * sizeof(double));
+                            memcpy(var9, (float[]){0.84, 0.16}, 2 * sizeof(float));
                         } else {
-                            memcpy(var9, (double[]){0.01048951048951049, 0.9895104895104895}, 2 * sizeof(double));
+                            memcpy(var9, (float[]){0.01048951048951049, 0.9895104895104895}, 2 * sizeof(float));
                         }
                     }
                 }
@@ -788,29 +788,29 @@ void score(double * input, double * output) {
                 if (input[4] <= 24412.552734375) {
                     if (input[5] <= 430.7655792236328) {
                         if (input[0] <= 7691.75537109375) {
-                            memcpy(var9, (double[]){0.9504643962848297, 0.04953560371517028}, 2 * sizeof(double));
+                            memcpy(var9, (float[]){0.9504643962848297, 0.04953560371517028}, 2 * sizeof(float));
                         } else {
-                            memcpy(var9, (double[]){0.6082949308755761, 0.391705069124424}, 2 * sizeof(double));
+                            memcpy(var9, (float[]){0.6082949308755761, 0.391705069124424}, 2 * sizeof(float));
                         }
                     } else {
                         if (input[3] <= -0.08689753338694572) {
-                            memcpy(var9, (double[]){0.8172043010752689, 0.1827956989247312}, 2 * sizeof(double));
+                            memcpy(var9, (float[]){0.8172043010752689, 0.1827956989247312}, 2 * sizeof(float));
                         } else {
-                            memcpy(var9, (double[]){0.027672955974842768, 0.9723270440251572}, 2 * sizeof(double));
+                            memcpy(var9, (float[]){0.027672955974842768, 0.9723270440251572}, 2 * sizeof(float));
                         }
                     }
                 } else {
                     if (input[5] <= -471.167236328125) {
                         if (input[0] <= 18445.79296875) {
-                            memcpy(var9, _leaf_down, 2 * sizeof(double));
+                            memcpy(var9, _leaf_down, 2 * sizeof(float));
                         } else {
-                            memcpy(var9, (double[]){0.5714285714285714, 0.42857142857142855}, 2 * sizeof(double));
+                            memcpy(var9, (float[]){0.5714285714285714, 0.42857142857142855}, 2 * sizeof(float));
                         }
                     } else {
                         if (input[3] <= -0.2224588394165039) {
-                            memcpy(var9, _leaf_down, 2 * sizeof(double));
+                            memcpy(var9, _leaf_down, 2 * sizeof(float));
                         } else {
-                            memcpy(var9, _leaf_up, 2 * sizeof(double));
+                            memcpy(var9, _leaf_up, 2 * sizeof(float));
                         }
                     }
                 }
@@ -818,18 +818,18 @@ void score(double * input, double * output) {
                 if (input[5] <= 316.36451721191406) {
                     if (input[2] <= 10.630445957183838) {
                         if (input[0] <= 21419.9423828125) {
-                            memcpy(var9, _leaf_down, 2 * sizeof(double));
+                            memcpy(var9, _leaf_down, 2 * sizeof(float));
                         } else {
-                            memcpy(var9, _leaf_up, 2 * sizeof(double));
+                            memcpy(var9, _leaf_up, 2 * sizeof(float));
                         }
                     } else {
-                        memcpy(var9, _leaf_down, 2 * sizeof(double));
+                        memcpy(var9, _leaf_down, 2 * sizeof(float));
                     }
                 } else {
                     if (input[3] <= -0.02067448478192091) {
-                        memcpy(var9, _leaf_down, 2 * sizeof(double));
+                        memcpy(var9, _leaf_down, 2 * sizeof(float));
                     } else {
-                        memcpy(var9, _leaf_up, 2 * sizeof(double));
+                        memcpy(var9, _leaf_up, 2 * sizeof(float));
                     }
                 }
             }
@@ -840,43 +840,43 @@ void score(double * input, double * output) {
                 if (input[7] <= 1.029249906539917) {
                     if (input[1] <= -9.765689849853516) {
                         if (input[8] <= 31.070932388305664) {
-                            memcpy(var9, _leaf_down, 2 * sizeof(double));
+                            memcpy(var9, _leaf_down, 2 * sizeof(float));
                         } else {
-                            memcpy(var9, (double[]){0.15789473684210525, 0.8421052631578947}, 2 * sizeof(double));
+                            memcpy(var9, (float[]){0.15789473684210525, 0.8421052631578947}, 2 * sizeof(float));
                         }
                     } else {
                         if (input[7] <= 0.9663477838039398) {
-                            memcpy(var9, (double[]){0.9944237918215614, 0.0055762081784386614}, 2 * sizeof(double));
+                            memcpy(var9, (float[]){0.9944237918215614, 0.0055762081784386614}, 2 * sizeof(float));
                         } else {
-                            memcpy(var9, (double[]){0.918918918918919, 0.08108108108108109}, 2 * sizeof(double));
+                            memcpy(var9, (float[]){0.918918918918919, 0.08108108108108109}, 2 * sizeof(float));
                         }
                     }
                 } else {
                     if (input[7] <= 1.0345497727394104) {
-                        memcpy(var9, _leaf_up, 2 * sizeof(double));
+                        memcpy(var9, _leaf_up, 2 * sizeof(float));
                     } else {
-                        memcpy(var9, _leaf_down, 2 * sizeof(double));
+                        memcpy(var9, _leaf_down, 2 * sizeof(float));
                     }
                 }
             } else {
                 if (input[1] <= -8.904102325439453) {
                     if (input[7] <= 0.25316237658262253) {
-                        memcpy(var9, _leaf_down, 2 * sizeof(double));
+                        memcpy(var9, _leaf_down, 2 * sizeof(float));
                     } else {
-                        memcpy(var9, _leaf_up, 2 * sizeof(double));
+                        memcpy(var9, _leaf_up, 2 * sizeof(float));
                     }
                 } else {
                     if (input[0] <= 9776.18310546875) {
                         if (input[7] <= 0.7509278357028961) {
-                            memcpy(var9, (double[]){0.5654008438818565, 0.4345991561181435}, 2 * sizeof(double));
+                            memcpy(var9, (float[]){0.5654008438818565, 0.4345991561181435}, 2 * sizeof(float));
                         } else {
-                            memcpy(var9, (double[]){0.9417989417989417, 0.0582010582010582}, 2 * sizeof(double));
+                            memcpy(var9, (float[]){0.9417989417989417, 0.0582010582010582}, 2 * sizeof(float));
                         }
                     } else {
                         if (input[4] <= 8062.46240234375) {
-                            memcpy(var9, (double[]){0.055944055944055944, 0.9440559440559441}, 2 * sizeof(double));
+                            memcpy(var9, (float[]){0.055944055944055944, 0.9440559440559441}, 2 * sizeof(float));
                         } else {
-                            memcpy(var9, (double[]){0.855072463768116, 0.14492753623188406}, 2 * sizeof(double));
+                            memcpy(var9, (float[]){0.855072463768116, 0.14492753623188406}, 2 * sizeof(float));
                         }
                     }
                 }
@@ -885,26 +885,26 @@ void score(double * input, double * output) {
             if (input[1] <= -6.056036710739136) {
                 if (input[7] <= 0.8076390027999878) {
                     if (input[2] <= -11.983191967010498) {
-                        memcpy(var9, _leaf_down, 2 * sizeof(double));
+                        memcpy(var9, _leaf_down, 2 * sizeof(float));
                     } else {
                         if (input[7] <= 0.6374289095401764) {
-                            memcpy(var9, _leaf_up, 2 * sizeof(double));
+                            memcpy(var9, _leaf_up, 2 * sizeof(float));
                         } else {
-                            memcpy(var9, (double[]){0.16666666666666666, 0.8333333333333334}, 2 * sizeof(double));
+                            memcpy(var9, (float[]){0.16666666666666666, 0.8333333333333334}, 2 * sizeof(float));
                         }
                     }
                 } else {
                     if (input[8] <= 75.56130599975586) {
                         if (input[7] <= 1.0014116764068604) {
-                            memcpy(var9, (double[]){0.7916666666666666, 0.20833333333333334}, 2 * sizeof(double));
+                            memcpy(var9, (float[]){0.7916666666666666, 0.20833333333333334}, 2 * sizeof(float));
                         } else {
-                            memcpy(var9, _leaf_up, 2 * sizeof(double));
+                            memcpy(var9, _leaf_up, 2 * sizeof(float));
                         }
                     } else {
                         if (input[5] <= -319.7944641113281) {
-                            memcpy(var9, _leaf_down, 2 * sizeof(double));
+                            memcpy(var9, _leaf_down, 2 * sizeof(float));
                         } else {
-                            memcpy(var9, (double[]){0.8367346938775511, 0.16326530612244897}, 2 * sizeof(double));
+                            memcpy(var9, (float[]){0.8367346938775511, 0.16326530612244897}, 2 * sizeof(float));
                         }
                     }
                 }
@@ -912,29 +912,29 @@ void score(double * input, double * output) {
                 if (input[0] <= 24904.9892578125) {
                     if (input[5] <= -115.61074829101562) {
                         if (input[7] <= 0.811960756778717) {
-                            memcpy(var9, _leaf_down, 2 * sizeof(double));
+                            memcpy(var9, _leaf_down, 2 * sizeof(float));
                         } else {
-                            memcpy(var9, _leaf_up, 2 * sizeof(double));
+                            memcpy(var9, _leaf_up, 2 * sizeof(float));
                         }
                     } else {
                         if (input[3] <= -0.48676931858062744) {
-                            memcpy(var9, (double[]){0.06666666666666667, 0.9333333333333333}, 2 * sizeof(double));
+                            memcpy(var9, (float[]){0.06666666666666667, 0.9333333333333333}, 2 * sizeof(float));
                         } else {
-                            memcpy(var9, _leaf_up, 2 * sizeof(double));
+                            memcpy(var9, _leaf_up, 2 * sizeof(float));
                         }
                     }
                 } else {
                     if (input[6] <= -0.06930937245488167) {
                         if (input[3] <= -0.20055481046438217) {
-                            memcpy(var9, _leaf_down, 2 * sizeof(double));
+                            memcpy(var9, _leaf_down, 2 * sizeof(float));
                         } else {
-                            memcpy(var9, _leaf_up, 2 * sizeof(double));
+                            memcpy(var9, _leaf_up, 2 * sizeof(float));
                         }
                     } else {
                         if (input[1] <= 45.29479217529297) {
-                            memcpy(var9, (double[]){0.0009375, 0.9990625}, 2 * sizeof(double));
+                            memcpy(var9, (float[]){0.0009375, 0.9990625}, 2 * sizeof(float));
                         } else {
-                            memcpy(var9, (double[]){0.05584756898817345, 0.9441524310118266}, 2 * sizeof(double));
+                            memcpy(var9, (float[]){0.05584756898817345, 0.9441524310118266}, 2 * sizeof(float));
                         }
                     }
                 }
@@ -943,5 +943,5 @@ void score(double * input, double * output) {
     }
     add_vectors(var2, var9, 2, var1);
     mul_vector_number(var1, 0.2, 2, var0);
-    memcpy(output, var0, 2 * sizeof(double));
+    memcpy(output, var0, 2 * sizeof(float));
 }
