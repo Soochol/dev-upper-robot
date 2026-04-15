@@ -119,7 +119,13 @@ void t_ml_run(void *arg)
 
         if (xSemaphoreTake(mtx_i2c1, pdMS_TO_TICKS(10)) == pdTRUE) {
             imu_st = icm42670p_read(&hi2c1, &imu);
-            (void)ads1115_read(&hi2c1, &fsr_raw);
+            static int16_t last_valid_fsr = 0;
+            HAL_StatusTypeDef fsr_st = ads1115_read(&hi2c1, &fsr_raw);
+            if (fsr_st == HAL_OK) {
+                last_valid_fsr = fsr_raw;
+            } else {
+                fsr_raw = last_valid_fsr;
+            }
             xSemaphoreGive(mtx_i2c1);
         }
 
