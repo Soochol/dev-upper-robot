@@ -52,4 +52,10 @@ void rtt_log_kv_hex(const char *prefix, uint32_t value);
  * use SEGGER_RTT_Write directly so they are NOT affected by mute. */
 void rtt_log_mute(bool muted);
 
+/* Printf-free formatting helpers — shared with sd_logger.c.
+ * Each appends to dst and returns the new write pointer. */
+char *append_str(char *dst, const char *src);
+char *append_u32(char *dst, uint32_t v);
+char *append_i32(char *dst, int32_t v);
+
 #endif /* APP_RTT_LOG_H */

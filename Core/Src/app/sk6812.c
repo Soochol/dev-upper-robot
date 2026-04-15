@@ -61,6 +61,7 @@
 static uint16_t         g_dma_buf[DMA_BUF_LEN];
 static sk6812_color_t   g_colors[SK6812_NUM_LEDS];
 static volatile uint8_t g_busy = 0;
+static volatile uint8_t g_dirty = 1;  /* 1: init 시 첫 프레임 전송 필요 */
 
 /* ========================================================================
  * Internal helpers
@@ -119,14 +120,20 @@ void sk6812_init(void)
 void sk6812_set(uint8_t index, sk6812_color_t color)
 {
     if (index < SK6812_NUM_LEDS) {
-        g_colors[index] = color;
+        if (g_colors[index].r != color.r ||
+            g_colors[index].g != color.g ||
+            g_colors[index].b != color.b) {
+            g_colors[index] = color;
+            g_dirty = 1;
+        }
     }
 }
 
 void sk6812_update(void)
 {
-    if (g_busy) return;  /* previous frame still in flight — drop */
+    if (g_busy || !g_dirty) return;
 
+    g_dirty = 0;
     rebuild_buf();
     g_busy = 1;
 

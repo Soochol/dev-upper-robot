@@ -20,11 +20,11 @@
 
 /* m2cgen-generated model — lives in Core/Src/app/model_rf.c.
  * Replaced each training iteration by train.py --output. */
-extern void score(double *input, double *output);
+extern void score(float *input, float *output);
 
 /* Probability threshold. Higher = fewer false positives but slower
  * response. 0.6 is a conservative starting point. */
-#define ML_PROB_THRESHOLD  0.6
+#define ML_PROB_THRESHOLD  0.6f
 
 /* Consecutive ticks above threshold before firing. At 20 Hz, 5 ticks
  * = 250 ms. Filters out transient FSR spikes that briefly exceed the
@@ -48,14 +48,8 @@ static uint8_t ml_eval(const sensor_snapshot_t *snap, fsm_state_t cur)
         }
     }
 
-    /* Convert float[9] → double[9] for m2cgen score(). */
-    double input[ML_FEAT_COUNT];
-    for (int i = 0; i < ML_FEAT_COUNT; i++) {
-        input[i] = (double)snap->ml_feat->v[i];
-    }
-
-    double output[2];  /* [P(FORCE_DOWN), P(FORCE_UP)] */
-    score(input, output);
+    float output[2];  /* [P(FORCE_DOWN), P(FORCE_UP)] */
+    score((float *)snap->ml_feat->v, output);
 
     /* Instantaneous gyro magnitude from raw IMU. Computed before the
      * debug log so both the log and the gate share the same value.
@@ -71,7 +65,7 @@ static uint8_t ml_eval(const sensor_snapshot_t *snap, fsm_state_t cur)
     ml_call_count++;
     if ((ml_call_count % 20) == 0) {
         rtt_log_hb_s("[ml:p]",
-                     " u=", (int32_t)(output[1] * 100.0),
+                     " u=", (int32_t)(output[1] * 100.0f),
                      " gy=", (int32_t)(gyro_now * 10.0f),
                      " fs=", (int32_t)snap->ml_feat->v[5],
                      " ax=", (int32_t)(snap->ml_feat->v[3] * 1000.0f));
