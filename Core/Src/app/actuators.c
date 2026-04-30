@@ -21,6 +21,7 @@
 #include "stm32f1xx_hal.h"
 #include "app/config.h"
 #include "app/actuators.h"
+#include "app/ipc.h"
 #include "app/sk6812.h"
 
 /* TIM1 ARR is 1000 (see Core/Src/tim.c MX_TIM1_Init). PID output and
@@ -57,13 +58,26 @@ void actuators_init(void)
     sk6812_init();
 }
 
+/* Failsafe gate (shared by heater + fan helpers).
+ * T_WDG sets g_failsafe_active before calling actuators_emergency_off().
+ * This gate narrows — does NOT eliminate — the race where T_WDG preempts
+ * T_PID after T_PID's cycle-top failsafe check but before its actuator
+ * write reaches the CCR. Residual window is the few instructions between
+ * this flag read and the __HAL_TIM_SET_COMPARE store (~1 µs). IWDG
+ * (~400 ms grace after stall) is the ultimate backstop.
+ *
+ * Skipped intentionally in actuators_emergency_off() — that path IS the
+ * writer of the failsafe state, gating it would make T_WDG a no-op. */
+
 void actuators_set_heater_duty(uint16_t duty_0_1000)
 {
+    if (g_failsafe_active) return;
     __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, clamp_duty(duty_0_1000));
 }
 
 void actuators_set_fan_duty_pct(uint8_t pct)
 {
+    if (g_failsafe_active) return;
     if (pct > 100) pct = 100;
     /* PWM 극성 반전: CCR=0 → 풀스피드, CCR=1000 → 최저속.
      * pct=0 → CCR=0 + PA10 LOW: PA9도 LOW로 내려 전류 경로 차단. */
