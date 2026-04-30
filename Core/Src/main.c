@@ -35,6 +35,9 @@
 #include <stdio.h>
 #include "SEGGER_RTT.h"
 #include "iwdg.h"
+#include "stm32f1xx_hal.h"
+#include "app/config.h"
+#include "app/ipc.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -138,6 +141,29 @@ int main(void)
    */
   HAL_GPIO_WritePin(OUT_PWR_HOLD_GPIO_Port, OUT_PWR_HOLD_Pin, GPIO_PIN_SET);
 
+  /* --- 1c. IWDG reset post-mortem indicator -------------------------------
+   * If RCC_CSR.IWDGRSTF is set, the previous reset was caused by the
+   * watchdog (a task deadlocked or starved). Snapshot RCC_CSR into the
+   * global g_reset_cause so T_STATE can enter FSM_FAULT directly at init,
+   * then clear all reset flags via RMVF. While still in pre-FreeRTOS
+   * code, blink GPIO LEDs PB0+PB1 to give the user a clear visual signal
+   * that this boot is *not* normal. SK6812 is not used here because it
+   * depends on TIM2/DMA + actuators_init() which only runs after T_PID
+   * starts. GPIO LEDs are init'd by MX_GPIO_Init() above and need no
+   * extra setup. */
+  g_reset_cause = RCC->CSR;
+  RCC->CSR |= RCC_CSR_RMVF;
+  if (g_reset_cause & RCC_CSR_IWDGRSTF) {
+    for (int i = 0; i < BOOT_FAULT_BLINK_COUNT; i++) {
+      HAL_GPIO_WritePin(OUT_LED_R1_GPIO_Port, OUT_LED_R1_Pin, GPIO_PIN_SET);
+      HAL_GPIO_WritePin(OUT_LED_R2_GPIO_Port, OUT_LED_R2_Pin, GPIO_PIN_SET);
+      HAL_Delay(BOOT_FAULT_BLINK_MS);
+      HAL_GPIO_WritePin(OUT_LED_R1_GPIO_Port, OUT_LED_R1_Pin, GPIO_PIN_RESET);
+      HAL_GPIO_WritePin(OUT_LED_R2_GPIO_Port, OUT_LED_R2_Pin, GPIO_PIN_RESET);
+      HAL_Delay(BOOT_FAULT_BLINK_MS);
+    }
+  }
+
   /* --- 1b. SEGGER RTT init -------------------------------------------------
    * RTT auto-initializes on first SEGGER_RTT_Write(), but calling Init
    * explicitly here lets us see the control block in memory before the first
@@ -167,12 +193,9 @@ int main(void)
   }
 
   /* --- 4. Hardware watchdog ------------------------------------------------
-   * Start IWDG last in the init sequence so the watchdog window covers only
-   * the FreeRTOS scheduler launch onward, not the peripheral bring-up above.
-   * defaultTask refreshes every 1 s; timeout is ~4 s. If the scheduler hangs
-   * (all tasks blocked or starved), the heater output will be cut by reset. */
-  MX_IWDG_Init();
-  printf("IWDG armed (timeout ~4s)\r\n");
+   * IWDG is started inside T_WDG (Core/Src/app/t_wdg.c), not here. Starting
+   * it from the kicker task avoids the timing gap between "IWDG counting"
+   * and "kicker is ready" [C1]. Do NOT call MX_IWDG_Init() in main.c. */
   /* USER CODE END 2 */
 
   /* Call init function for freertos objects (in cmsis_os2.c) */

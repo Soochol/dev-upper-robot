@@ -19,11 +19,20 @@
 
 /* Priorities — higher number = higher priority. Must stay below
  * configMAX_PRIORITIES (= 7 in FreeRTOSConfig.h). T_STATE is highest because
- * it owns the FSM and safety timeout. T_PID is next so the control loop
- * preempts ML work. T_ML is below the control loop. T_LOGGER is idle-class. */
+ * it owns the FSM and safety timeout. T_PID and T_ML share priority 4 so
+ * neither starves the other when one overruns its 50 ms period — FreeRTOS
+ * time-slices same-priority tasks 1:1 every tick (configUSE_TIME_SLICING=1
+ * by default, configUSE_PREEMPTION=1). T_LOGGER is idle-class.
+ *
+ * Why equal: T_PID's IR_READ phase can take ~52 ms when the TBP-H70 IR
+ * sensors clock-stretch I2C and HAL_I2C_Mem_Read hits its internal
+ * I2C_TIMEOUT_FLAG (~35 ms). With strict priorities (T_PID > T_ML), one
+ * such overrun starved T_ML for 300+ ms → IWDG reset. With equal priorities
+ * the scheduler shares CPU, T_ML still runs, canary stays alive. The
+ * underlying IR_READ slowness is tracked separately. */
 #define PRIO_T_STATE        5
 #define PRIO_T_PID          4
-#define PRIO_T_ML           3
+#define PRIO_T_ML           4
 #define PRIO_T_LOGGER       1
 #define PRIO_DEFAULT        1
 
@@ -361,6 +370,13 @@
  * the timeout ranges from 267 ms (60 kHz) to 533 ms (30 kHz). */
 #define IWDG_PRESCALER_VAL    IWDG_PRESCALER_64
 #define IWDG_RELOAD_VAL       250
+
+/* Boot-time IWDG-recovery indicator. After an IWDG reset, main.c blinks
+ * GPIO LEDs PB0+PB1 to flag "the previous reset was not normal" before
+ * FreeRTOS starts. T_STATE separately enters FSM_FAULT on IWDG-recovery
+ * boot so the system does not transiently show the FORCE_DOWN color. */
+#define BOOT_FAULT_BLINK_MS    200
+#define BOOT_FAULT_BLINK_COUNT 5
 
 /* ========================================================================
  * Overtemp sustained-count threshold

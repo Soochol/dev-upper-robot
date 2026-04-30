@@ -102,6 +102,7 @@ typedef enum {
     FAULT_REASON_PID_WATCHDOG,
     FAULT_REASON_FSR_TIMEOUT,       /* FSR/ADS1115 (T_ML) */
     FAULT_REASON_IMU_TIMEOUT,       /* IMU/ICM42670P (T_ML) */
+    FAULT_REASON_WATCHDOG_RECOVERY, /* Boot following an IWDG reset */
 } fault_reason_t;
 
 /* ========================================================================
@@ -131,5 +132,50 @@ extern volatile uint32_t g_fsm_state;
 extern volatile uint32_t g_canary_state;
 extern volatile uint32_t g_canary_pid;
 extern volatile uint32_t g_canary_ml;
+
+/* Failsafe latch — set to 1 by T_WDG when a canary stall is detected,
+ * read by T_PID to skip its actuator writes so they cannot overwrite
+ * the emergency-off applied by T_WDG. Single-writer (T_WDG), single-
+ * reader (T_PID), uint8_t volatile is atomic on Cortex-M3. Once set,
+ * stays set until IWDG reset clears it (terminal state). */
+extern volatile uint8_t  g_failsafe_active;
+
+/* ========================================================================
+ * Stall diagnostics — last phase each task entered
+ * ========================================================================
+ * Each task updates its phase byte at major boundaries within its main
+ * loop. T_WDG includes these in its STALL log so we know *which line of
+ * code* a task was executing when it stopped incrementing its canary.
+ * Pure observability — no behavior change, single-byte volatile writes
+ * are atomic on Cortex-M3. Phase values defined per-task in their .c file. */
+
+extern volatile uint8_t  g_phase_state;
+extern volatile uint8_t  g_phase_pid;
+extern volatile uint8_t  g_phase_ml;
+
+/* Cycle duration of the last completed iteration, in FreeRTOS ticks
+ * (1 tick = 1 ms with portTICK_PERIOD_MS=1). 0 means "no cycle completed
+ * yet". Useful for catching gradual slowdowns before they become stalls. */
+extern volatile uint32_t g_cycle_ms_state;
+extern volatile uint32_t g_cycle_ms_pid;
+extern volatile uint32_t g_cycle_ms_ml;
+
+/* Per-phase wall-clock max duration (ms) for T_PID, indexed by phase value.
+ * Updated by t_pid.c on every phase transition; reset by T_WDG when
+ * dumped at 1 Hz. Lets us pinpoint which step inside T_PID's loop is
+ * eating the cycle budget. Includes preemption time from higher-priority
+ * tasks — phase whose value spikes is where the wall-clock is being lost. */
+#define PID_PHASE_COUNT 10
+extern volatile uint32_t g_pid_phase_ms[PID_PHASE_COUNT];
+
+/* ========================================================================
+ * Reset cause (snapshot of RCC_CSR taken before clearing)
+ * ========================================================================
+ * Written exactly once by main.c before FreeRTOS starts; read by tasks at
+ * init time. Single-writer/multi-reader with strict happens-before via
+ * scheduler start, so volatile uint32_t is sufficient (no mutex). Bits
+ * follow stm32f1xx HAL: RCC_CSR_IWDGRSTF, RCC_CSR_SFTRSTF, etc. */
+
+extern volatile uint32_t g_reset_cause;
 
 #endif /* APP_IPC_H */

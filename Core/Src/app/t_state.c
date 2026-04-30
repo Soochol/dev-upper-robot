@@ -30,6 +30,17 @@
 /* Local helpers                                                            */
 /* ------------------------------------------------------------------------ */
 
+/* Phase markers written to g_phase_state (see t_ml.c for rationale). */
+enum {
+    PHASE_STATE_IDLE       = 0,
+    PHASE_STATE_DRAIN_FAULT = 1,
+    PHASE_STATE_SAFETY_TO  = 2,
+    PHASE_STATE_DRAIN_TRIG = 3,
+    PHASE_STATE_FSM_NEXT   = 4,
+    PHASE_STATE_PUBLISH    = 5,
+    PHASE_STATE_HEARTBEAT  = 6,
+};
+
 /* Publish the per-state outputs to T_PID. Non-blocking — if the queue is
  * full we drop and rely on the next tick. q_ctrl_to_pid depth is 4 and
  * T_PID consumes once per tick at the same 20 Hz, so the queue should
@@ -55,12 +66,36 @@ void t_state_run(void *arg)
 {
     (void)arg;
 
-    /* Boot-time initial state per D8: FORCE_DOWN (fail-safe).
-     * g_fsm_state is the public copy other tasks read for safety checks. */
+    /* Boot-time initial state.
+     *
+     * Default per D8: FORCE_DOWN (fail-safe).
+     *
+     * Exception — IWDG-recovery boot: if the previous reset was caused by
+     * the watchdog (g_reset_cause snapshot from main.c carries IWDGRSTF),
+     * enter FSM_FAULT directly. This avoids a transient FORCE_DOWN frame
+     * (which renders blue on the LED) and makes the failure visually
+     * persistent: the user sees red without interruption. The matching
+     * boot indicator in main.c already flashed for ~2 s before this task
+     * started; entering FAULT here keeps the red 1 Hz blink going forever
+     * (terminal state, recoverable only via power cycle).
+     *
+     * Sensor-error FAULTs (q_fault_req from t_pid/t_ml) take the normal
+     * path and are unaffected by this — they happen *after* tasks are
+     * running and arrive through the queue, not through reset cause. */
     fsm_state_t state = FSM_FORCE_DOWN;
+    if (g_reset_cause & RCC_CSR_IWDGRSTF) {
+        state = FSM_FAULT;
+        fault_req_t freq = {
+            .reason = (uint8_t)FAULT_REASON_WATCHDOG_RECOVERY,
+            .pad    = {0, 0, 0},
+        };
+        (void)xQueueSendToBack(q_fault_req, &freq, 0);
+        rtt_log_str("[t_state] start, init=FAULT (IWDG recovery)");
+    } else {
+        rtt_log_str("[t_state] start, init=FORCE_DOWN");
+    }
     g_fsm_state = (uint32_t)state;
     publish_ctrl(state);
-    rtt_log_str("[t_state] start, init=FORCE_DOWN");
 
     /* When did we enter the current state? Used by safety timeout. */
     TickType_t state_entered_tick = xTaskGetTickCount();
@@ -72,10 +107,13 @@ void t_state_run(void *arg)
     uint32_t tick = 0;
 
     for (;;) {
+        g_phase_state = PHASE_STATE_IDLE;
         vTaskDelayUntil(&next_wake, pdMS_TO_TICKS(PERIOD_T_STATE_MS));
+        TickType_t cycle_start = xTaskGetTickCount();
         tick++;
 
         fsm_event_t event = FSM_EVT_NONE;
+        g_phase_state = PHASE_STATE_DRAIN_FAULT;
 
         /* Priority 1: fault requests from T_PID and/or T_ML. Drain the
          * entire queue so all fault reasons are logged [C3]. Only the
@@ -91,6 +129,7 @@ void t_state_run(void *arg)
             }
         }
 
+        g_phase_state = PHASE_STATE_SAFETY_TO;
         /* Priority 2: safety timeout (FORCE_UP only). Skip if a higher
          * priority event already won this tick. */
         if (event == FSM_EVT_NONE && state == FSM_FORCE_UP) {
@@ -103,6 +142,7 @@ void t_state_run(void *arg)
             }
         }
 
+        g_phase_state = PHASE_STATE_DRAIN_TRIG;
         /* Priority 3: trigger event from T_ML (via Phase 2 emulator for
          * now). Drain only one per tick to keep the FSM serializable. */
         if (event == FSM_EVT_NONE) {
@@ -112,9 +152,11 @@ void t_state_run(void *arg)
             }
         }
 
+        g_phase_state = PHASE_STATE_FSM_NEXT;
         /* Apply the event. fsm_next is pure — no side effects. */
         fsm_state_t next = fsm_next(state, event);
         if (next != state) {
+            g_phase_state = PHASE_STATE_PUBLISH;
             rtt_log_hb("[t_state] transition",
                        " from=", (uint32_t)state,
                        " evt=",  (uint32_t)event,
@@ -130,6 +172,7 @@ void t_state_run(void *arg)
             }
         }
 
+        g_phase_state = PHASE_STATE_HEARTBEAT;
         /* Idle heartbeat: prove the task is alive between transitions.
          * Once per second at 20 Hz. */
         if ((tick % 20) == 0) {
@@ -139,6 +182,9 @@ void t_state_run(void *arg)
                        (const char *)0, 0,
                        (const char *)0, 0);
         }
+
+        g_cycle_ms_state = (uint32_t)((xTaskGetTickCount() - cycle_start)
+                                      * portTICK_PERIOD_MS);
 
         /* Canary: prove T_STATE completed a full loop iteration. */
         g_canary_state++;

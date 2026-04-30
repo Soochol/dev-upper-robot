@@ -13,8 +13,15 @@
  * by this module in Phase 3 — it needs DMA frame composition that
  * arrives in Phase 6 along with the rest of the polish work.
  *
- * Single-owner: T_PID is the only task that calls these functions.
- * No mutex protection — direct register writes are atomic on Cortex-M3.
+ * Single-owner during normal operation: T_PID drives all outputs.
+ * Exception: actuators_emergency_off() may be called from T_WDG ONLY
+ * when a canary stall is detected. Race-free because:
+ *   - CCR writes and GPIO BSRR writes are atomic on Cortex-M3
+ *   - emergency_off does NOT touch the LED static state
+ *   - T_PID gates its own actuator writes via g_failsafe_active so it
+ *     cannot overwrite the emergency-off after T_WDG sets the flag
+ *   - T_WDG runs at higher priority (6 > 4), so the flag-set + write
+ *     pair preempts T_PID atomically from T_PID's perspective
  */
 
 #ifndef APP_ACTUATORS_H
@@ -34,8 +41,10 @@ typedef enum {
     LED_FADE_YELLOW       = 1,   /* FORCE_DOWN: cooling, solid           */
     LED_RAMP_YELLOW       = 2,   /* FORCE_UP:   heating, solid           */
     LED_FLASH_RED         = 3,   /* FAULT:      alarm,   1 Hz blink      */
-    LED_FADE_YELLOW_BLINK = 4,   /* FORCE_DOWN: cooling in progress, blink */
-    LED_RAMP_YELLOW_BLINK = 5,   /* FORCE_UP:   heating in progress, blink */
+    LED_FADE_YELLOW_BLINK     = 4,   /* FORCE_DOWN: cooling in progress, blink */
+    LED_RAMP_YELLOW_BLINK     = 5,   /* FORCE_UP:   heating in progress, blink */
+    LED_RECORDING_BLINK       = 6,   /* DATA_COLLECT recording: magenta 1 Hz    */
+    LED_RECORDING_ERROR_BLINK = 7,   /* DATA_COLLECT SD write fail: magenta fast */
 } led_pattern_t;
 
 /* ========================================================================
@@ -85,6 +94,22 @@ void actuators_set_heater_duty(uint16_t duty_0_1000);
  * PA10 serves as master enable (HIGH when pct > 0).
  */
 void actuators_set_fan_duty_pct(uint8_t pct);
+
+/* ========================================================================
+ * Emergency stop (T_WDG only)
+ * ======================================================================== */
+
+/**
+ * @brief  Force heater PWM and fan power OFF immediately. LED untouched.
+ *
+ * Called from T_WDG when a canary stall is detected, during the ~400 ms
+ * grace window before IWDG fires. Touches only TIM1 CCRx and the PA10
+ * fan-power GPIO — no static state, no mutex, no blocking.
+ *
+ * Must NOT be used as a normal control path. Pair with setting
+ * g_failsafe_active so T_PID stops writing actuators on its next tick.
+ */
+void actuators_emergency_off(void);
 
 /* ========================================================================
  * Indicator LEDs (PB0, PB1)

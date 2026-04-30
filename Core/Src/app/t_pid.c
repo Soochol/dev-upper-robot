@@ -37,6 +37,9 @@
 #include "app/actuators.h"
 #include "app/pid.h"
 #include "app/rtt_log.h"
+#if DATA_COLLECT_MODE
+#include "app/sd_logger.h"
+#endif
 
 /* Consecutive read failures before escalating to FAULT. Set high enough
  * to survive the boot-time init window where T_ML holds mtx_i2c1 for
@@ -45,6 +48,37 @@
  * sustained sensor failures trigger FAULT. */
 #define IR_READ_FAIL_LIMIT   40u
 
+/* Phase markers written to g_phase_pid (see t_ml.c for rationale). */
+enum {
+    PHASE_PID_IDLE       = 0,
+    PHASE_PID_MUTEX_TAKE = 1,
+    PHASE_PID_IR_READ    = 2,   /* HAL_I2C busy-wait for both IR sensors */
+    PHASE_PID_DRAIN_CMD  = 3,   /* drain q_ctrl_to_pid */
+    PHASE_PID_FAULT_CHK  = 4,   /* fail count + recovery decision */
+    PHASE_PID_RECOVERY   = 5,   /* I2C bus recovery loop */
+    PHASE_PID_OVERTEMP   = 6,   /* over-temp evaluation */
+    PHASE_PID_COMPUTE    = 7,   /* PID compute */
+    PHASE_PID_ACTUATE    = 8,   /* heater PWM, fan PWM, LED */
+    PHASE_PID_HEARTBEAT  = 9,   /* RTT log */
+};
+
+/* Per-phase wall-clock duration (ms) accumulator. On each phase transition,
+ * record how long was spent in the previous phase; keep the running max
+ * per phase in the global array. T_WDG dumps and resets these at 1 Hz. */
+static TickType_t s_pid_phase_start = 0;
+
+static inline void pid_phase_enter(uint8_t new_phase)
+{
+    TickType_t now = xTaskGetTickCount();
+    uint32_t elapsed = (uint32_t)((now - s_pid_phase_start)
+                                  * portTICK_PERIOD_MS);
+    uint8_t prev = g_phase_pid;
+    if (prev < PID_PHASE_COUNT && elapsed > g_pid_phase_ms[prev]) {
+        g_pid_phase_ms[prev] = elapsed;
+    }
+    g_phase_pid = new_phase;
+    s_pid_phase_start = now;
+}
 
 void t_pid_run(void *arg)
 {
@@ -92,20 +126,42 @@ void t_pid_run(void *arg)
     uint32_t   tick = 0;
 
     for (;;) {
+        pid_phase_enter(PHASE_PID_IDLE);
         vTaskDelayUntil(&next_wake, pdMS_TO_TICKS(PERIOD_T_PID_MS));
+        TickType_t cycle_start = xTaskGetTickCount();
         tick++;
+
+        /* ---- 0. Failsafe gate ----
+         * If T_WDG has detected a canary stall, stop touching actuators.
+         * T_WDG already wrote heater=0 / fan_pwr=0 via actuators_emergency_off()
+         * and is no longer kicking IWDG, so reset is imminent (≤400 ms).
+         * Without this gate we would race T_WDG and re-arm the heater on
+         * every 50 ms tick — defeating the failsafe.
+         *
+         * Canary still increments so the stall log identifies the actually
+         * frozen task (T_STATE or T_ML), not us. T_WDG only kicks when ALL
+         * canaries are below CANARY_MAX_MISS, and the truly-stalled task's
+         * canary stays frozen — so resuming our canary cannot accidentally
+         * cancel the pending reset. */
+        if (g_failsafe_active) {
+            g_canary_pid++;
+            continue;
+        }
 
         /* ---- 1. Read both IR sensors ---- */
         float ir1_c = 0.0f, ir2_c = 0.0f;
         HAL_StatusTypeDef st1 = HAL_ERROR, st2 = HAL_ERROR;
 
+        pid_phase_enter(PHASE_PID_MUTEX_TAKE);
         if (xSemaphoreTake(mtx_i2c1, pdMS_TO_TICKS(10)) == pdTRUE) {
+            pid_phase_enter(PHASE_PID_IR_READ);
             st1 = tbp_h70_read_target_c(&hi2c1, IR_SENSOR_1_I2C_ADDR_7B, &ir1_c);
             st2 = tbp_h70_read_target_c(&hi2c1, IR_SENSOR_2_I2C_ADDR_7B, &ir2_c);
             xSemaphoreGive(mtx_i2c1);
         }
 
         /* ---- 2. Drain ctrl_cmd queue (keep last) ---- */
+        pid_phase_enter(PHASE_PID_DRAIN_CMD);
         ctrl_cmd_t cmd_in;
         while (xQueueReceive(q_ctrl_to_pid, &cmd_in, 0) == pdTRUE) {
             current_cmd = cmd_in;
@@ -127,12 +183,14 @@ void t_pid_run(void *arg)
             measurement = last_valid_meas;  /* keep stale value, count failure */
         }
 
+        pid_phase_enter(PHASE_PID_FAULT_CHK);
         if (ir_ok) {
             last_valid_meas = measurement;
             ir_fail_count = 0u;
         } else {
             ir_fail_count++;
             if (ir_fail_count >= IR_READ_FAIL_LIMIT) {
+                pid_phase_enter(PHASE_PID_RECOVERY);
                 /* Attempt I2C bus recovery before declaring FAULT.
                  * 3 immediate retries under mutex [C2], then FAULT. */
                 bool recovered = false;
@@ -174,6 +232,7 @@ void t_pid_run(void *arg)
          * consecutive exceeding samples (1 second) to reject noise spikes.
          * [W4] Counter is NOT reset after sending FAULT — if the queue
          * was full, the next tick retries immediately. */
+        pid_phase_enter(PHASE_PID_OVERTEMP);
         bool overtemp = false;
         if (st1 == HAL_OK && ir1_c > (float)OVERTEMP_HARD_C) overtemp = true;
         if (st2 == HAL_OK && ir2_c > (float)OVERTEMP_HARD_C) overtemp = true;
@@ -200,6 +259,7 @@ void t_pid_run(void *arg)
          * unconditionally overridden to 0 (FORCE_DOWN / deadband).
          * Now we branch on FSM state first and only call pid_compute
          * when the PID actually drives the heater. */
+        pid_phase_enter(PHASE_PID_COMPUTE);
         fsm_state_t snap_state = (fsm_state_t)g_fsm_state;
         uint8_t fan_pct = current_cmd.fan_duty_pct;
         led_pattern_t led = (led_pattern_t)current_cmd.led_pattern;
@@ -269,11 +329,22 @@ void t_pid_run(void *arg)
         }
 
         /* ---- 7. Write actuators ---- */
+        pid_phase_enter(PHASE_PID_ACTUATE);
         actuators_set_heater_duty(heater_duty);
         actuators_set_fan_duty_pct(fan_pct);
+#if DATA_COLLECT_MODE
+        /* Recording overlay — FAULT always wins (safety). When recording,
+         * fast magenta blink signals SD write failures so the user notices
+         * silent corruption immediately instead of post-hoc. */
+        if (led != LED_FLASH_RED && sd_logger_is_recording()) {
+            led = sd_logger_has_write_error() ? LED_RECORDING_ERROR_BLINK
+                                              : LED_RECORDING_BLINK;
+        }
+#endif
         actuators_set_led_pattern(led);
 
         /* ---- 8. Heartbeat log (1 Hz) ---- */
+        pid_phase_enter(PHASE_PID_HEARTBEAT);
         if ((tick % 20) == 0) {
             rtt_log_hb_s("[t_pid]",
                          " ir_cC=", (int32_t)(measurement * 100.0f),
@@ -295,6 +366,9 @@ void t_pid_run(void *arg)
             };
             (void)xQueueSendToBack(q_log, &lm, 0);
         }
+
+        g_cycle_ms_pid = (uint32_t)((xTaskGetTickCount() - cycle_start)
+                                    * portTICK_PERIOD_MS);
 
         /* Canary: prove T_PID completed a full loop iteration. */
         g_canary_pid++;

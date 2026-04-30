@@ -38,6 +38,22 @@
 #include "main.h"             /* IN_FUNC_SW1_Pin/Port, SW2 */
 #endif
 
+/* Phase markers written to g_phase_ml. T_WDG dumps the last phase on
+ * STALL so we know which code section a frozen T_ML was executing. */
+enum {
+    PHASE_ML_IDLE       = 0,   /* between iterations (vTaskDelayUntil) */
+    PHASE_ML_MUTEX_TAKE = 1,   /* waiting on mtx_i2c1 */
+    PHASE_ML_IMU_READ   = 2,   /* HAL_I2C_Mem_Read for ICM42670P (busy-wait) */
+    PHASE_ML_FSR_READ   = 3,   /* HAL_I2C_Mem_Write+Read for ADS1115 */
+    PHASE_ML_FAIL_CHECK = 4,   /* failure tracking + recovery decision */
+    PHASE_ML_RECOVERY   = 5,   /* I2C bus recovery loop */
+    PHASE_ML_TILT       = 6,   /* tilt_update (sqrtf, acosf) */
+    PHASE_ML_FEATURES   = 7,   /* ml_features_update (sliding window) */
+    PHASE_ML_TRIGGER    = 8,   /* trigger_eval + queue publish */
+    PHASE_ML_SD_LOG     = 9,   /* SD card row write (DATA_COLLECT_MODE) */
+    PHASE_ML_HEARTBEAT  = 10,  /* RTT 1Hz heartbeat */
+};
+
 void t_ml_run(void *arg)
 {
     (void)arg;
@@ -109,7 +125,9 @@ void t_ml_run(void *arg)
     uint32_t   tick = 0;
 
     for (;;) {
+        g_phase_ml = PHASE_ML_IDLE;
         vTaskDelayUntil(&next_wake, pdMS_TO_TICKS(PERIOD_T_ML_MS));
+        TickType_t cycle_start = xTaskGetTickCount();
         tick++;
 
         /* ---- 1. Read sensors ---- */
@@ -118,8 +136,11 @@ void t_ml_run(void *arg)
         HAL_StatusTypeDef imu_st = HAL_ERROR;
         HAL_StatusTypeDef fsr_st = HAL_ERROR;
 
+        g_phase_ml = PHASE_ML_MUTEX_TAKE;
         if (xSemaphoreTake(mtx_i2c1, pdMS_TO_TICKS(10)) == pdTRUE) {
+            g_phase_ml = PHASE_ML_IMU_READ;
             imu_st = icm42670p_read(&hi2c1, &imu);
+            g_phase_ml = PHASE_ML_FSR_READ;
             fsr_st = ads1115_read(&hi2c1, &fsr_raw);
             xSemaphoreGive(mtx_i2c1);
         }
@@ -127,6 +148,7 @@ void t_ml_run(void *arg)
         /* ---- 1a. Sensor failure tracking ----
          * Keep last valid values on failure (prevents false triggers).
          * Escalate to bus recovery + FAULT after ML_SENSOR_FAIL_LIMIT. */
+        g_phase_ml = PHASE_ML_FAIL_CHECK;
         {
             static int16_t last_valid_fsr = 0;
             static uint32_t fsr_fail_count = 0;
@@ -148,6 +170,7 @@ void t_ml_run(void *arg)
 
             if (fsr_fail_count >= ML_SENSOR_FAIL_LIMIT ||
                 imu_fail_count >= ML_SENSOR_FAIL_LIMIT) {
+                g_phase_ml = PHASE_ML_RECOVERY;
                 /* Bus recovery under mutex [C2]. */
                 if (xSemaphoreTake(mtx_i2c1, pdMS_TO_TICKS(100)) == pdTRUE) {
                     bool recovered = false;
@@ -192,12 +215,14 @@ void t_ml_run(void *arg)
         }
 
         /* ---- 2. Feature extraction: tilt from accel ---- */
+        g_phase_ml = PHASE_ML_TILT;
         float tilt_x = 0.0f, tilt_y = 0.0f;
         if (imu_st == HAL_OK) {
             tilt_update(&tilt, &imu, &tilt_x, &tilt_y);
         }
 
         /* ---- 3. ML feature extraction (sliding window) ---- */
+        g_phase_ml = PHASE_ML_FEATURES;
         ml_features_t ml_feat;
         ml_features_update(&ml_win, fsr_raw, tilt_x, tilt_y,
                            &imu, &ml_feat);
@@ -216,24 +241,30 @@ void t_ml_run(void *arg)
         { extern volatile uint32_t sd_dbg_tick; sd_dbg_tick = tick; }
 
 #if DATA_COLLECT_MODE
-        /* ---- 3b. Button-controlled SD recording ---- */
+        g_phase_ml = PHASE_ML_SD_LOG;
+        /* ---- 3b. SW1 single-button toggle for SD recording ----
+         * Falling-edge detect (released → pressed) prevents auto-toggle
+         * when the user holds the button. 4-tick (200 ms) debounce
+         * absorbs mechanical chatter. btn_debounce is re-armed AFTER
+         * dump_rtt completes — dump blocks T_ML for several seconds, so
+         * a press during dump must not register a new start the moment
+         * the dump returns. */
         if (sd_ok) {
+            static bool sw1_prev = false;
+
             bool sw1 = (HAL_GPIO_ReadPin(IN_FUNC_SW1_GPIO_Port,
                                          IN_FUNC_SW1_Pin) == GPIO_PIN_RESET);
-            bool sw2 = (HAL_GPIO_ReadPin(IN_FUNC_SW2_GPIO_Port,
-                                         IN_FUNC_SW2_Pin) == GPIO_PIN_RESET);
 
-            if (sw1 && !sd_logger_is_recording()
-                    && (tick - btn_debounce) > 4) {
-                sd_logger_start();
+            if (sw1 && !sw1_prev && (tick - btn_debounce) > 4) {
+                if (sd_logger_is_recording()) {
+                    sd_logger_stop();
+                    sd_logger_dump_rtt();
+                } else {
+                    sd_logger_start();
+                }
                 btn_debounce = tick;
             }
-            if (sw2 && sd_logger_is_recording()
-                    && (tick - btn_debounce) > 4) {
-                sd_logger_stop();
-                sd_logger_dump_rtt();
-                btn_debounce = tick;
-            }
+            sw1_prev = sw1;
 
             /* Write sensor row if recording. */
             if (sd_logger_is_recording()) {
@@ -248,6 +279,7 @@ void t_ml_run(void *arg)
 #endif
 
         /* ---- 3c. Evaluate trigger ---- */
+        g_phase_ml = PHASE_ML_TRIGGER;
         fsm_state_t cur_state = (fsm_state_t)g_fsm_state;
         uint8_t event = trigger_eval(&snap, cur_state);
 
@@ -258,6 +290,7 @@ void t_ml_run(void *arg)
         }
 
         /* ---- 5. Heartbeat log (1 Hz) — 3 lines per second ---- */
+        g_phase_ml = PHASE_ML_HEARTBEAT;
         if ((tick % 20) == 0) {
             rtt_log_hb_s("[ml:a]",
                          " x=", (int32_t)imu.accel_x,
@@ -277,6 +310,11 @@ void t_ml_run(void *arg)
                          NULL, 0,
                          NULL, 0);
         }
+
+        /* Cycle duration measurement (ms). Lets T_WDG / 1Hz log catch
+         * gradual slowdowns before they become full stalls. */
+        g_cycle_ms_ml = (uint32_t)((xTaskGetTickCount() - cycle_start)
+                                   * portTICK_PERIOD_MS);
 
         /* Canary: prove T_ML completed a full loop iteration. */
         g_canary_ml++;

@@ -32,10 +32,11 @@
 static char     s_buf[SD_LOG_BUF_SIZE];
 static uint16_t s_buf_pos;
 static FIL      s_file;
-static bool     s_mounted   = false;
-static bool     s_recording = false;
-static uint16_t s_next_index = 0;
-static char     s_last_fname[16];   /* e.g. "ml_003.csv" */
+static bool              s_mounted   = false;
+static volatile bool     s_recording = false;
+static volatile uint32_t s_write_err_count = 0;   /* T_ML increments, T_PID reads */
+static uint16_t          s_next_index = 0;
+static char              s_last_fname[16];   /* e.g. "ml_003.csv" */
 
 /* Debug trace — readable via GDB without RTT. */
 volatile int32_t  sd_dbg_step = 0;
@@ -52,6 +53,7 @@ static void flush_buf(void)
     UINT bw;
     FRESULT fr = f_write(&s_file, s_buf, s_buf_pos, &bw);
     if (fr != FR_OK || bw != s_buf_pos) {
+        s_write_err_count++;
         rtt_log_str("[sd] write err");
     }
     /* f_sync() removed: syncing on every flush forces FAT table rewrites
@@ -218,6 +220,7 @@ bool sd_logger_start(void)
     /* Write CSV header. */
     static const char hdr[] = "ms,fsr,ax,ay,az,gx,gy,gz,tx100,ty100\n";
     s_buf_pos = 0;
+    s_write_err_count = 0;   /* fresh recording starts with clean error state */
     s_recording = true;   /* Must set before buf_append (flush_buf checks it) */
     buf_append(hdr, (uint16_t)(sizeof(hdr) - 1));
 
@@ -247,6 +250,11 @@ void sd_logger_stop(void)
 bool sd_logger_is_recording(void)
 {
     return s_recording;
+}
+
+bool sd_logger_has_write_error(void)
+{
+    return s_write_err_count > 0;
 }
 
 void sd_logger_write_row(uint32_t timestamp_ms,

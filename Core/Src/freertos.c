@@ -91,6 +91,30 @@ volatile uint32_t g_canary_state = 0;
 volatile uint32_t g_canary_pid   = 0;
 volatile uint32_t g_canary_ml    = 0;
 
+/* Failsafe latch — see ipc.h. Cleared at boot, set by T_WDG on stall. */
+volatile uint8_t  g_failsafe_active = 0;
+
+/* Stall-diagnostic phase markers — updated by each task at major boundaries
+ * within its main loop. T_WDG dumps these on STALL so the post-mortem
+ * shows which step a task was executing when it froze. */
+volatile uint8_t  g_phase_state   = 0;
+volatile uint8_t  g_phase_pid     = 0;
+volatile uint8_t  g_phase_ml      = 0;
+
+/* Last completed cycle duration in ms. Lets us spot near-stalls (e.g.,
+ * cycles taking 80-200 ms regularly) before they become full stalls. */
+volatile uint32_t g_cycle_ms_state = 0;
+volatile uint32_t g_cycle_ms_pid   = 0;
+volatile uint32_t g_cycle_ms_ml    = 0;
+
+/* T_PID per-phase max wall-clock duration (ms). Indexed by g_phase_pid. */
+volatile uint32_t g_pid_phase_ms[PID_PHASE_COUNT] = {0};
+
+/* Snapshot of RCC_CSR taken in main.c before RMVF clear. T_STATE reads this
+ * at init to decide whether to enter FSM_FAULT directly (IWDG-recovery boot)
+ * or boot normally into FORCE_DOWN. Written-once-before-scheduler-start. */
+volatile uint32_t g_reset_cause = 0;
+
 /* USER CODE END Variables */
 osThreadId defaultTaskHandle;
 

@@ -74,14 +74,39 @@ void actuators_set_fan_duty_pct(uint8_t pct)
                       pct > 0 ? GPIO_PIN_SET : GPIO_PIN_RESET);
 }
 
+void actuators_emergency_off(void)
+{
+    /* Heater: CCR=0 → 0% duty → off. */
+    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, 0);
+    /* Fan: CCR=0 (HW inverted polarity = full-speed waveform) but PA10
+     * LOW kills the fan supply rail, so the fan does not spin. The CCR
+     * write keeps the PWM line consistent with PA10 in case board rev
+     * later removes the master-enable. */
+    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, 0);
+    HAL_GPIO_WritePin(OUT_FAN_PWR_GPIO_Port, OUT_FAN_PWR_Pin, GPIO_PIN_RESET);
+}
+
 /* Blink: 1 Hz (500 ms on, 500 ms off).
  * Called at 20 Hz (PERIOD_T_PID_MS = 50 ms), so 10 ticks per half-cycle. */
-#define BLINK_HALF_PERIOD  (500u / PERIOD_T_PID_MS)  /* 10 */
+#define BLINK_HALF_PERIOD       (500u / PERIOD_T_PID_MS)  /* 10 */
+
+/* Fast blink: ~5 Hz (100 ms half-cycle). Used to signal "recording but the
+ * SD write path is broken" — same magenta color, faster cadence conveys
+ * urgency without introducing a new color the user has to learn. */
+#define BLINK_FAST_HALF_PERIOD  (100u / PERIOD_T_PID_MS)  /* 2 */
 
 static bool blink_is_on(uint16_t *tick)
 {
     bool on = (*tick / BLINK_HALF_PERIOD) % 2 == 0;
     if (++(*tick) >= BLINK_HALF_PERIOD * 2)
+        *tick = 0;
+    return on;
+}
+
+static bool blink_fast_is_on(uint16_t *tick)
+{
+    bool on = (*tick / BLINK_FAST_HALF_PERIOD) % 2 == 0;
+    if (++(*tick) >= BLINK_FAST_HALF_PERIOD * 2)
         *tick = 0;
     return on;
 }
@@ -132,6 +157,16 @@ void actuators_set_led_pattern(led_pattern_t pat)
             r1 = GPIO_PIN_SET;
             r2 = GPIO_PIN_SET;
             rgb = (sk6812_color_t){255, 0, 0};
+        }
+        break;
+    case LED_RECORDING_BLINK:
+        if (blink_is_on(&blink_tick)) {
+            rgb = (sk6812_color_t){255, 0, 255};   /* magenta */
+        }
+        break;
+    case LED_RECORDING_ERROR_BLINK:
+        if (blink_fast_is_on(&blink_tick)) {
+            rgb = (sk6812_color_t){255, 0, 255};   /* magenta — fast = SD write error */
         }
         break;
     default:

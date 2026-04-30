@@ -70,6 +70,16 @@ void sd_logger_write_row(uint32_t timestamp_ms,
 void sd_logger_flush(void);
 
 /**
+ * @brief  True if any f_write call failed during the current recording.
+ *
+ * Latched until the next sd_logger_start() (which resets the counter).
+ * T_PID polls this to switch the LED from steady "recording" blink to
+ * a fast warning blink when the SD card stops accepting writes — without
+ * this, recording silently corrupts and the user only finds out post-hoc.
+ */
+bool sd_logger_has_write_error(void);
+
+/**
  * @brief  Stream the last recorded file over RTT channel 0.
  *
  * Reads the file in 256-byte chunks and writes to SEGGER_RTT.
