@@ -151,6 +151,7 @@ void t_ml_run(void *arg)
         g_phase_ml = PHASE_ML_FAIL_CHECK;
         {
             static int16_t last_valid_fsr = 0;
+            static imu_raw_t last_valid_imu = {0};
             static uint32_t fsr_fail_count = 0;
             static uint32_t imu_fail_count = 0;
 
@@ -162,9 +163,21 @@ void t_ml_run(void *arg)
                 fsr_fail_count++;
             }
 
-            if (imu_st == HAL_OK) {
+            /* IMU sentinel detection: HAL_OK with all-0xFFFF payload means
+             * the I2C transaction protocol-completed but the chip returned
+             * idle bus (EMI / brownout / clock-stretch glitch). Treat as
+             * failure — restore last valid sample so feature/SD/trigger
+             * pipelines see clean data instead of -1 garbage. */
+            bool imu_corrupt = (imu_st == HAL_OK) && (
+                (imu.gyro_x  == -1 && imu.gyro_y  == -1 && imu.gyro_z  == -1) ||
+                (imu.accel_x == -1 && imu.accel_y == -1 && imu.accel_z == -1)
+            );
+
+            if (imu_st == HAL_OK && !imu_corrupt) {
+                last_valid_imu = imu;
                 imu_fail_count = 0;
             } else {
+                imu = last_valid_imu;
                 imu_fail_count++;
             }
 
@@ -245,10 +258,8 @@ void t_ml_run(void *arg)
         /* ---- 3b. SW1 single-button toggle for SD recording ----
          * Falling-edge detect (released → pressed) prevents auto-toggle
          * when the user holds the button. 4-tick (200 ms) debounce
-         * absorbs mechanical chatter. btn_debounce is re-armed AFTER
-         * dump_rtt completes — dump blocks T_ML for several seconds, so
-         * a press during dump must not register a new start the moment
-         * the dump returns. */
+         * absorbs mechanical chatter. Data is retrieved by physically
+         * removing the SD card — no in-band dump path. */
         if (sd_ok) {
             static bool sw1_prev = false;
 
@@ -258,7 +269,6 @@ void t_ml_run(void *arg)
             if (sw1 && !sw1_prev && (tick - btn_debounce) > 4) {
                 if (sd_logger_is_recording()) {
                     sd_logger_stop();
-                    sd_logger_dump_rtt();
                 } else {
                     sd_logger_start();
                 }

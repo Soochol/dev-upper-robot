@@ -46,19 +46,31 @@ volatile uint32_t sd_dbg_tick = 0;
 /* Internal helpers                                                     */
 /* ------------------------------------------------------------------ */
 
+/* Periodic f_sync interval. Syncing every flush (~0.5 s) overwhelms the
+ * card; never syncing means a single f_close() failure loses the whole
+ * recording (FAT/dir entry never updates → host sees 0-byte file).
+ * ~5 flushes ≈ 5 s preserves most data even if close fails. */
+#define SD_FLUSHES_PER_SYNC  5
+
 static void flush_buf(void)
 {
     if (!s_recording || s_buf_pos == 0) return;
+
+    static uint32_t flushes_since_sync = 0;
 
     UINT bw;
     FRESULT fr = f_write(&s_file, s_buf, s_buf_pos, &bw);
     if (fr != FR_OK || bw != s_buf_pos) {
         s_write_err_count++;
         rtt_log_str("[sd] write err");
+    } else if (++flushes_since_sync >= SD_FLUSHES_PER_SYNC) {
+        FRESULT fs = f_sync(&s_file);
+        if (fs != FR_OK) {
+            s_write_err_count++;
+            rtt_log_kv("[sd] sync fail fr=", (uint32_t)fs);
+        }
+        flushes_since_sync = 0;
     }
-    /* f_sync() removed: syncing on every flush forces FAT table rewrites
-     * at ~0.5 s intervals which overwhelms the SD card and causes write
-     * failures. f_close() in sd_logger_stop() syncs implicitly. */
     s_buf_pos = 0;
 }
 
@@ -187,7 +199,20 @@ bool sd_logger_init(void)
 
 bool sd_logger_start(void)
 {
-    if (!s_mounted || s_recording) return false;
+    if (s_recording) return false;
+
+    /* Lazy remount: a previous close-fail left us in s_mounted=false.
+     * Try to recover here so the user can resume recording without
+     * power-cycling the device. Re-scan the directory because new files
+     * may have been written by another tool while we were dismounted. */
+    if (!s_mounted) {
+        FRESULT rm = f_mount(&SDFatFS, SDPath, 1);
+        rtt_log_kv("[sd] lazy mount fr=", (uint32_t)rm);
+        if (rm != FR_OK) return false;
+        s_mounted = true;
+        s_next_index = scan_next_index();
+        rtt_log_kv("[sd] next_idx=", s_next_index);
+    }
 
     /* Build filename: ml_000.csv .. ml_999.csv */
     char fname[16];
@@ -241,7 +266,28 @@ void sd_logger_stop(void)
     /* Flush remaining buffer and close file. */
     flush_buf();
     s_recording = false;
-    f_close(&s_file);
+    FRESULT fc = f_close(&s_file);
+    if (fc != FR_OK) {
+        /* Close updates the FAT/dir entry — failure here means the host
+         * will see a 0-byte file even though clusters were written.
+         * Bump the error counter so LED goes magenta-fast and user knows. */
+        s_write_err_count++;
+        rtt_log_kv("[sd] close fail fr=", (uint32_t)fc);
+
+        /* FatFs lock leak recovery: f_close() only calls dec_lock() when
+         * validate(fp) passes (ff.c:2948). On FR_INVALID_OBJECT the lock
+         * slot in Files[_FS_LOCK] stays held forever, and after _FS_LOCK
+         * (=2) such failures every subsequent f_open returns
+         * FR_TOO_MANY_OPEN_FILES (fr=18). Force a remount: f_mount(NULL)
+         * runs clear_lock(fs) (ff.c:2493), wiping the table. */
+        f_mount(NULL, "", 0);
+        FRESULT rm = f_mount(&SDFatFS, SDPath, 1);
+        rtt_log_kv("[sd] remount fr=", (uint32_t)rm);
+        if (rm != FR_OK) {
+            s_mounted = false;   /* next sd_logger_start() will refuse */
+        }
+        memset(&s_file, 0, sizeof(s_file));
+    }
 
     rtt_log_str("[sd] rec stop:");
     rtt_log_str(s_last_fname);
