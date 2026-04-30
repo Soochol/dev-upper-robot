@@ -283,14 +283,14 @@
  * PID gains (PLACEHOLDER, Phase 6 tuning)
  * ======================================================================== */
 
-#define PID_KP            2.0f
+#define PID_KP            10.0f
 #define PID_KI            0.1f
 #define PID_KD            0.5f
 
 /* Setpoint weighting: P term uses Kp * (b * sp - meas).
  * b = 1.0 is standard PID, b = 0.7 reduces overshoot on setpoint steps
  * while preserving full disturbance rejection. */
-#define PID_SETPOINT_WEIGHT_B   0.7f
+#define PID_SETPOINT_WEIGHT_B   1.0f
 
 /* Derivative filter coefficient N = Td / Tf. Higher N = less filtering.
  * N = 10 limits D-term bandwidth to ~10x the P-term bandwidth. */
@@ -308,6 +308,29 @@
 /* Heater output slew-rate limit: max delta-duty per 50 ms cycle.
  * 50 out of 1000 per cycle → 0 to 100 % in 1.0 s. */
 #define PID_SLEW_LIMIT_PER_CYCLE  50
+
+/* FU 2-phase control (APPROACH bang-bang → SETTLE FF+PID).
+ * APPROACH_BAND_C: when err drops to this, switch to SETTLE.
+ * SETTLE_HYSTERESIS_C: must be > APPROACH_BAND_C. Only revert to
+ * APPROACH if a large disturbance pushes err above this threshold. */
+#define FU_APPROACH_BAND_C        3.0f
+#define FU_SETTLE_HYSTERESIS_C    5.0f
+
+/* Feedforward steady-state duty for SETTLE phase. PID corrects residual
+ * error on top of this baseline. 1차 추정값 25%(=250/1000). 빌드 후
+ * RTT 로그에서 SETTLE 안정 시 평균 duty 측정해 ±20 이내로 재조정 권장. */
+#define FF_HOLD_DUTY              250
+
+/* SETTLE 출력 상한 — FF 과다 추정이나 PID windup으로 인한 폭주 방지
+ * safety net. 정상 동작 시 SETTLE은 200~500 duty로 수렴해야 함;
+ * 600 이상은 발열 손실이 비정상적으로 크다는 신호. */
+#define SETTLE_DUTY_MAX           600
+
+/* SETTLE 전용 PID gain. APPROACH는 PID 미사용. SETTLE은 안정성 우선
+ * 보수적 튜닝. APPROACH의 Kp=10보다 훨씬 낮다. */
+#define PID_KP_SETTLE             3.0f
+#define PID_KI_SETTLE             1.0f
+#define PID_KD_SETTLE             0.5f
 
 /* ========================================================================
  * Queue sizes (number of items)

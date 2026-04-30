@@ -122,6 +122,11 @@ void t_pid_run(void *arg)
     bool     reached_target  = false;
     uint8_t  prev_led_pat    = current_cmd.led_pattern;
 
+    /* FU 2-phase control state (APPROACH → SETTLE).
+     * Reset to APPROACH on every FU entry (detected via prev_state). */
+    fu_phase_t  fu_phase   = FU_PHASE_APPROACH;
+    fsm_state_t prev_state = FSM_FORCE_DOWN;
+
     TickType_t next_wake = xTaskGetTickCount();
     uint32_t   tick = 0;
 
@@ -271,17 +276,56 @@ void t_pid_run(void *arg)
             pid_reset(&heater_pid);
 
         } else if (snap_state == FSM_FORCE_UP) {
-            if (current_cmd.pid_enabled && ir_ok && !overtemp) {
-                float output = pid_compute(&heater_pid,
-                                           (float)current_cmd.setpoint_c,
-                                           measurement,
-                                           PID_DT_S);
-                if (output < 0.0f) output = 0.0f;
-                heater_duty = (uint16_t)output;
+            /* FU 진입 감지 → phase 강제 reset (clean state from any path:
+             * FD→FU, FAULT→FU 등). prev_state는 분기 끝에서 갱신. */
+            if (prev_state != FSM_FORCE_UP) {
+                fu_phase = FU_PHASE_APPROACH;
+            }
 
+            if (current_cmd.pid_enabled && ir_ok && !overtemp) {
                 float err = (float)current_cmd.setpoint_c - measurement;
-                if (err <= (float)TEMP_DEADBAND_C)
-                    heater_duty = 0;
+
+                /* Phase 전이 (sticky, hysteresis) */
+                if (fu_phase == FU_PHASE_APPROACH) {
+                    if (err <= (float)FU_APPROACH_BAND_C) {
+                        fu_phase = FU_PHASE_SETTLE;
+                        pid_reset(&heater_pid);
+                        pid_set_gains(&heater_pid,
+                                      PID_KP_SETTLE,
+                                      PID_KI_SETTLE,
+                                      PID_KD_SETTLE);
+                        rtt_log_str("[t_pid] FU phase: APPROACH->SETTLE");
+                    }
+                } else { /* SETTLE */
+                    if (err > (float)FU_SETTLE_HYSTERESIS_C) {
+                        fu_phase = FU_PHASE_APPROACH;
+                        rtt_log_str("[t_pid] FU phase: SETTLE->APPROACH (disturbance)");
+                    }
+                }
+
+                /* Phase별 출력 계산 */
+                if (fu_phase == FU_PHASE_APPROACH) {
+                    /* Bang-bang: 풀듀티. PID integrator는 호출 안 해서 동결.
+                     * Slew limiter(5a)가 0→MAX 1초 ramp로 thermal shock 보호. */
+                    heater_duty = (uint16_t)PID_OUTPUT_MAX;
+                } else { /* SETTLE */
+                    if (measurement > (float)current_cmd.setpoint_c) {
+                        /* Setpoint 초과 → 명시적 OFF (FF baseline의 안전판).
+                         * pid_compute는 출력 0 클램프라 음수 보정 불가하므로
+                         * FF=250이 항상 남아 오버슛 폭주 가능 — 이를 차단. */
+                        heater_duty = 0;
+                    } else {
+                        float pid_out = pid_compute(&heater_pid,
+                                                    (float)current_cmd.setpoint_c,
+                                                    measurement,
+                                                    PID_DT_S);
+                        float total = (float)FF_HOLD_DUTY + pid_out;
+                        if (total < 0.0f) total = 0.0f;
+                        if (total > (float)SETTLE_DUTY_MAX)
+                            total = (float)SETTLE_DUTY_MAX;
+                        heater_duty = (uint16_t)total;
+                    }
+                }
             }
 
         } else if (snap_state == FSM_FORCE_DOWN) {
@@ -289,18 +333,22 @@ void t_pid_run(void *arg)
             fan_pct = (ir_ok && err > (float)TEMP_DEADBAND_C) ? FAN_DUTY_COOLDOWN_PCT : 0;
         }
 
+        /* prev_state 갱신 — 다음 사이클의 FU 진입 검출용. 모든 분기가
+         * 끝난 시점에서 한 번만. */
+        prev_state = snap_state;
+
         /* ---- 5a. Heater output slew-rate limit ---- */
         /* Bypass slew limiter when heater must shut off immediately:
          * FAULT (safety) and FORCE_DOWN (no heating needed).
-         * Only ramp during FORCE_UP where thermal shock matters. */
+         * Only ramp UP during FORCE_UP — 하강은 즉시(끄는 건 안전).
+         * 단방향 ramp는 APPROACH→SETTLE 전환 시 듀티 급락을 즉시 반영해
+         * 오버슛을 줄인다. */
         {
             static uint16_t prev_heater_duty = 0;
-            if (snap_state == FSM_FORCE_UP && heater_duty > 0) {
+            if (snap_state == FSM_FORCE_UP && heater_duty > prev_heater_duty) {
                 int16_t delta = (int16_t)heater_duty - (int16_t)prev_heater_duty;
                 if (delta > PID_SLEW_LIMIT_PER_CYCLE)
                     heater_duty = prev_heater_duty + PID_SLEW_LIMIT_PER_CYCLE;
-                else if (delta < -PID_SLEW_LIMIT_PER_CYCLE)
-                    heater_duty = prev_heater_duty - PID_SLEW_LIMIT_PER_CYCLE;
             }
             prev_heater_duty = heater_duty;
         }

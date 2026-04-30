@@ -47,6 +47,14 @@ typedef enum {
     FSM_STATE_COUNT
 } fsm_state_t;
 
+/* Sub-phase inside FSM_FORCE_UP. Owned by t_pid.
+ * APPROACH = bang-bang full duty toward setpoint.
+ * SETTLE   = feedforward + conservative PID near setpoint. */
+typedef enum {
+    FU_PHASE_APPROACH = 0,
+    FU_PHASE_SETTLE   = 1,
+} fu_phase_t;
+
 /* FSM events. T_STATE consumes these and produces state transitions.
  * No button events — buttons are not used in this product (D13). */
 typedef enum {
