@@ -1,0 +1,78 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "CMake: Configure (selected preset)",
+            "type": "shell",
+            "command": "cmake",
+            "args": ["--preset", "${input:preset}"],
+            "options": { "cwd": "${workspaceFolder}" },
+            "problemMatcher": [],
+            "presentation": { "panel": "shared", "clear": true }
+        },
+        {
+            "label": "Build: Debug (default — DATA_COLLECT=OFF, ML=OFF)",
+            "type": "shell",
+            "command": "cmake",
+            "args": ["--build", "build/Debug", "-j"],
+            "options": { "cwd": "${workspaceFolder}" },
+            "group": { "kind": "build", "isDefault": true },
+            "problemMatcher": ["$gcc"],
+            "dependsOn": ["__configure-Debug"],
+            "presentation": { "panel": "shared", "clear": true }
+        },
+        {
+            "label": "Build: Debug-Full (ML + DATA_COLLECT)",
+            "type": "shell",
+            "command": "cmake",
+            "args": ["--build", "build/Debug-Full", "-j"],
+            "options": { "cwd": "${workspaceFolder}" },
+            "group": "build",
+            "problemMatcher": ["$gcc"],
+            "dependsOn": ["__configure-Debug-Full"],
+            "presentation": { "panel": "shared", "clear": true }
+        },
+        {
+            "label": "Flash: Debug",
+            "type": "shell",
+            "command": ".claude/skills/build-flash/build_flash.sh",
+            "args": ["Debug"],
+            "options": { "cwd": "${workspaceFolder}" },
+            "problemMatcher": ["$gcc"],
+            "presentation": { "panel": "shared", "clear": true }
+        },
+        {
+            "label": "Flash: Debug-Full",
+            "type": "shell",
+            "command": ".claude/skills/build-flash/build_flash.sh",
+            "args": ["Debug-Full"],
+            "options": { "cwd": "${workspaceFolder}" },
+            "problemMatcher": ["$gcc"],
+            "presentation": { "panel": "shared", "clear": true }
+        },
+        {
+            "label": "Clean: All build dirs",
+            "type": "shell",
+            "command": "rm",
+            "args": ["-rf", "build/"],
+            "options": { "cwd": "${workspaceFolder}" },
+            "problemMatcher": [],
+            "presentation": { "panel": "shared", "clear": true }
+        },
+
+        { "label": "__configure-Debug",      "type": "shell", "command": "cmake", "args": ["--preset", "Debug"],      "options": { "cwd": "${workspaceFolder}" }, "problemMatcher": [], "presentation": { "reveal": "silent", "panel": "shared" } },
+        { "label": "__configure-Debug-Full", "type": "shell", "command": "cmake", "args": ["--preset", "Debug-Full"], "options": { "cwd": "${workspaceFolder}" }, "problemMatcher": [], "presentation": { "reveal": "silent", "panel": "shared" } }
+    ],
+    "inputs": [
+        {
+            "id": "preset",
+            "type": "pickString",
+            "description": "CMake preset",
+            "options": [
+                "Debug",
+                "Debug-Full"
+            ],
+            "default": "Debug"
+        }
+    ]
+}

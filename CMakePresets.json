@@ -20,51 +20,8 @@
             }
         },
         {
-            "name": "Debug-Logging",
-            "inherits": "Debug",
-            "cacheVariables": {
-                "DATA_COLLECT": "ON"
-            }
-        },
-        {
-            "name": "Debug-ML",
-            "inherits": "Debug",
-            "cacheVariables": {
-                "ML_TRIGGER": "ON"
-            }
-        },
-        {
             "name": "Debug-Full",
             "inherits": "Debug",
-            "cacheVariables": {
-                "DATA_COLLECT": "ON",
-                "ML_TRIGGER": "ON"
-            }
-        },
-        {
-            "name": "Release",
-            "inherits": "default",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Release"
-            }
-        },
-        {
-            "name": "Release-Logging",
-            "inherits": "Release",
-            "cacheVariables": {
-                "DATA_COLLECT": "ON"
-            }
-        },
-        {
-            "name": "Release-ML",
-            "inherits": "Release",
-            "cacheVariables": {
-                "ML_TRIGGER": "ON"
-            }
-        },
-        {
-            "name": "Release-Full",
-            "inherits": "Release",
             "cacheVariables": {
                 "DATA_COLLECT": "ON",
                 "ML_TRIGGER": "ON"
@@ -72,13 +29,7 @@
         }
     ],
     "buildPresets": [
-        { "name": "Debug",          "configurePreset": "Debug" },
-        { "name": "Debug-Logging",  "configurePreset": "Debug-Logging" },
-        { "name": "Debug-ML",       "configurePreset": "Debug-ML" },
-        { "name": "Debug-Full",     "configurePreset": "Debug-Full" },
-        { "name": "Release",         "configurePreset": "Release" },
-        { "name": "Release-Logging", "configurePreset": "Release-Logging" },
-        { "name": "Release-ML",      "configurePreset": "Release-ML" },
-        { "name": "Release-Full",    "configurePreset": "Release-Full" }
+        { "name": "Debug",      "configurePreset": "Debug" },
+        { "name": "Debug-Full", "configurePreset": "Debug-Full" }
     ]
 }
