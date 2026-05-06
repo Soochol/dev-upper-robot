@@ -2,3 +2,4 @@ test_pid
 test_fsm
 test_features
 test_trigger
+test_trigger_ml

@@ -78,7 +78,8 @@ static uint8_t ml_eval(const sensor_snapshot_t *snap, fsm_state_t cur)
     static uint8_t down_streak = 0;
 
     if (cur == FSM_FORCE_DOWN && output[1] > ML_PROB_THRESHOLD
-                              && gyro_now > 30.0f) {
+                              && gyro_now > 30.0f
+                              && snap->fsr_raw > FSR_THRESHOLD_DOWN_RAW) {
         up_streak++;
         down_streak = 0;
     } else if (cur == FSM_FORCE_UP && output[0] > ML_PROB_THRESHOLD) {
