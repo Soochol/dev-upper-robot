@@ -62,8 +62,8 @@
  * ======================================================================== */
 
 /* Temperature setpoints (degrees Celsius) */
-#define TEMP_ACTIVE_C           52   /* FORCE_UP target */
-#define TEMP_COOL_C             38   /* FORCE_DOWN target */
+#define TEMP_ACTIVE_C           60   /* FORCE_UP target */
+#define TEMP_COOL_C             40   /* FORCE_DOWN target */
 #define OVERTEMP_HARD_C        100   /* heater element absolute max (FAULT) */
 #define TEMP_DEADBAND_C          2   /* ±2°C: within this range = target reached */
 
