@@ -266,13 +266,28 @@
  * Trigger provider selection (compile-time, v1)
  * ======================================================================== */
 
-#define TRIG_SRC_RULE  0
-#define TRIG_SRC_ML    1
+#define TRIG_SRC_RULE   0
+#define TRIG_SRC_ML     1
+#define TRIG_SRC_TIMER  2  /* test cycle: FU/FD time-based loop, sensors ignored */
 
 /* Default provider for v1. Switch by changing this single macro and
  * rebuilding. Runtime switching is deferred to Phase 4+. */
 #ifndef TRIGGER_SOURCE
 #define TRIGGER_SOURCE  TRIG_SRC_RULE
+#endif
+
+/* Test cycle (TRIG_SRC_TIMER) durations. FU stays under
+ * SAFETY_MAX_FORCE_UP_MS (60s) so the safety timeout doesn't preempt.
+ * Temporary fast-cycle values for quick iteration: FU=10s, FD=30s. */
+#ifndef TEST_FU_DURATION_MS
+#define TEST_FU_DURATION_MS  10000U
+#endif
+#ifndef TEST_FD_DURATION_MS
+#define TEST_FD_DURATION_MS  30000U
+#endif
+
+#if (TRIGGER_SOURCE == TRIG_SRC_TIMER) && (TEST_FU_DURATION_MS >= SAFETY_MAX_FORCE_UP_MS)
+#  warning "TEST_FU_DURATION_MS >= SAFETY_MAX_FORCE_UP_MS — safety timeout will preempt the cycle"
 #endif
 
 /* (Old Phase 2 placeholders removed — now defined in the detailed

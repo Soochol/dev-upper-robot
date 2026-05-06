@@ -71,6 +71,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Core/Src/app/trigger.c
     Core/Src/app/trigger_rule.c
     Core/Src/app/trigger_ml.c
+    Core/Src/app/trigger_timer.c
     Core/Src/app/model_rf.c
     Core/Src/app/sd_logger.c
 
@@ -92,14 +93,24 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 # ML workflow build-time configuration.
 # Usage: cmake --preset Debug -DDATA_COLLECT=ON   (SD logging + button control)
 #        cmake --preset Debug -DML_TRIGGER=ON      (ML inference instead of rule)
+#        cmake --preset Debug-Cycle                (timer-based FU/FD test cycle)
 option(DATA_COLLECT "Enable SD card CSV logging with button control" OFF)
 option(ML_TRIGGER   "Use ML trigger provider instead of rule-based"  OFF)
+option(TEST_CYCLE   "Use timer-based test cycle trigger (FU/FD burn-in loop)" OFF)
+
+# TEST_CYCLE and ML_TRIGGER both assign TRIGGER_SOURCE — pick exactly one.
+if(TEST_CYCLE AND ML_TRIGGER)
+    message(FATAL_ERROR
+        "TEST_CYCLE and ML_TRIGGER are mutually exclusive — they assign different "
+        "values to TRIGGER_SOURCE. Pick one preset (Debug-Full or Debug-Cycle).")
+endif()
 
 # Add project symbols (macros)
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
     $<$<BOOL:${DATA_COLLECT}>:DATA_COLLECT_MODE=1>
     $<$<NOT:$<BOOL:${DATA_COLLECT}>>:DATA_COLLECT_MODE=0>
     $<$<BOOL:${ML_TRIGGER}>:TRIGGER_SOURCE=1>
+    $<$<BOOL:${TEST_CYCLE}>:TRIGGER_SOURCE=2>
 )
 
 # Remove wrong libob.a library dependency when using cpp files

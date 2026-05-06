@@ -5,6 +5,7 @@
 
 #include "app/trigger.h"
 #include "app/config.h"
+#include "app/trigger_timer.h"
 
 /* Compile-time provider selection. The #if compiles in only one provider
  * path, so the other's code is dead-stripped by the linker (--gc-sections)
@@ -12,8 +13,10 @@
  * and rebuild. Runtime switching (pointer reassignment) would live here
  * as a future Phase 6+ enhancement. */
 
-#if TRIGGER_SOURCE == TRIG_SRC_ML
+#if   TRIGGER_SOURCE == TRIG_SRC_ML
 static const trigger_provider_t *g_provider = &trig_ml;
+#elif TRIGGER_SOURCE == TRIG_SRC_TIMER
+static const trigger_provider_t *g_provider = &trig_timer;
 #else
 static const trigger_provider_t *g_provider = &trig_rule;
 #endif

@@ -26,10 +26,21 @@
                 "DATA_COLLECT": "ON",
                 "ML_TRIGGER": "ON"
             }
+        },
+        {
+            "name": "Debug-Cycle",
+            "inherits": "Debug",
+            "displayName": "Debug (FU/FD test cycle)",
+            "cacheVariables": {
+                "TEST_CYCLE": "ON",
+                "DATA_COLLECT": "OFF",
+                "ML_TRIGGER": "OFF"
+            }
         }
     ],
     "buildPresets": [
-        { "name": "Debug",      "configurePreset": "Debug" },
-        { "name": "Debug-Full", "configurePreset": "Debug-Full" }
+        { "name": "Debug",       "configurePreset": "Debug" },
+        { "name": "Debug-Full",  "configurePreset": "Debug-Full" },
+        { "name": "Debug-Cycle", "configurePreset": "Debug-Cycle" }
     ]
 }
