@@ -278,12 +278,12 @@
 
 /* Test cycle (TRIG_SRC_TIMER) durations. FU stays under
  * SAFETY_MAX_FORCE_UP_MS (60s) so the safety timeout doesn't preempt.
- * Temporary fast-cycle values for quick iteration: FU=10s, FD=30s. */
+ * Temporary fast-cycle values for quick iteration: FU=10s, FD=50s. */
 #ifndef TEST_FU_DURATION_MS
 #define TEST_FU_DURATION_MS  10000U
 #endif
 #ifndef TEST_FD_DURATION_MS
-#define TEST_FD_DURATION_MS  30000U
+#define TEST_FD_DURATION_MS  50000U
 #endif
 
 #if (TRIGGER_SOURCE == TRIG_SRC_TIMER) && (TEST_FU_DURATION_MS >= SAFETY_MAX_FORCE_UP_MS)
