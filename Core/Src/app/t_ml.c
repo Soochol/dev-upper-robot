@@ -28,11 +28,18 @@
 #include "i2c.h"
 #include "app/config.h"
 #include "app/ipc.h"
+#include "app/t_ml_inst.h"
 #include "app/fsm.h"
 #include "app/sensors_i2c.h"
 #include "app/features.h"
 #include "app/trigger.h"
+#include "app/react.h"
 #include "app/rtt_log.h"
+
+/* T_ML instrumentation surface — see t_ml_inst.h for the contract. */
+volatile uint32_t g_canary_ml   = 0;
+volatile uint8_t  g_phase_ml    = 0;
+volatile uint32_t g_cycle_ms_ml = 0;
 #if DATA_COLLECT_MODE
 #include "app/sd_logger.h"
 #include "main.h"             /* IN_FUNC_SW1_Pin/Port, SW2 */
@@ -123,6 +130,11 @@ void t_ml_run(void *arg)
 
     TickType_t next_wake = xTaskGetTickCount();
     uint32_t   tick = 0;
+
+    /* Reaction-time tracker (sensor onset → FU dispatch latency).
+     * Purely observational; readable via GDB as s_react.last_react_ms. */
+    react_tracker_t s_react;
+    react_tracker_init(&s_react);
 
     for (;;) {
         g_phase_ml = PHASE_ML_IDLE;
@@ -293,33 +305,42 @@ void t_ml_run(void *arg)
         fsm_state_t cur_state = (fsm_state_t)g_fsm_state;
         uint8_t event = trigger_eval(&snap, cur_state);
 
+        /* Reaction-time measurement. react_update observes onset and FU
+         * dispatch; returns react_ms only on the cycle FU fires while
+         * armed. side-effect free — caller emits the log line. */
+        uint32_t react_ms = react_update(&s_react, cur_state, &snap,
+                                          next_wake,
+                                          event == TRIG_EVENT_FORCE_UP);
+        if (react_ms != 0) {
+            uint32_t ts_ms = (uint32_t)(next_wake * portTICK_PERIOD_MS);
+            rtt_log_hb_st("[react]", ts_ms,
+                          " ms=",  (int32_t)react_ms,
+                          " src=", (int32_t)s_react.source,
+                          NULL, 0, NULL, 0);
+        }
+
         /* ---- 4. Publish trigger event if not NONE ---- */
         if (event != TRIG_EVENT_NONE) {
             trig_msg_t msg = { .event = event, .pad = {0, 0, 0} };
             (void)xQueueSendToBack(q_trigger_to_state, &msg, 0);
         }
 
-        /* ---- 5. Heartbeat log (1 Hz) — 3 lines per second ---- */
+        /* ---- 5. Heartbeat log ---- */
         g_phase_ml = PHASE_ML_HEARTBEAT;
-        if ((tick % 20) == 0) {
-            rtt_log_hb_s("[ml:a]",
-                         " x=", (int32_t)imu.accel_x,
-                         " y=", (int32_t)imu.accel_y,
-                         " z=", (int32_t)imu.accel_z,
-                         " fsr=", (int32_t)fsr_raw);
-
-            rtt_log_hb_s("[ml:g]",
-                         " x=", (int32_t)imu.gyro_x,
-                         " y=", (int32_t)imu.gyro_y,
-                         " z=", (int32_t)imu.gyro_z,
-                         " evt=", (int32_t)event);
-
-            rtt_log_hb_s("[ml:t]",
-                         " tx=", (int32_t)(tilt_x * 100.0f),
-                         " ty=", (int32_t)(tilt_y * 100.0f),
-                         NULL, 0,
-                         NULL, 0);
-        }
+        rtt_heartbeat(tick, "[ml:a]",
+                      " x=", (int32_t)imu.accel_x,
+                      " y=", (int32_t)imu.accel_y,
+                      " z=", (int32_t)imu.accel_z,
+                      " fsr=", (int32_t)fsr_raw);
+        rtt_heartbeat(tick, "[ml:g]",
+                      " x=", (int32_t)imu.gyro_x,
+                      " y=", (int32_t)imu.gyro_y,
+                      " z=", (int32_t)imu.gyro_z,
+                      " evt=", (int32_t)event);
+        rtt_heartbeat(tick, "[ml:t]",
+                      " tx=", (int32_t)(tilt_x * 100.0f),
+                      " ty=", (int32_t)(tilt_y * 100.0f),
+                      NULL, 0, NULL, 0);
 
         /* Cycle duration measurement (ms). Lets T_WDG / 1Hz log catch
          * gradual slowdowns before they become full stalls. */

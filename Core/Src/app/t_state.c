@@ -23,8 +23,14 @@
 #include "stm32f1xx_hal.h"
 #include "app/config.h"
 #include "app/ipc.h"
+#include "app/t_state_inst.h"
 #include "app/fsm.h"
 #include "app/rtt_log.h"
+
+/* T_STATE instrumentation surface — see t_state_inst.h for the contract. */
+volatile uint32_t g_canary_state   = 0;
+volatile uint8_t  g_phase_state    = 0;
+volatile uint32_t g_cycle_ms_state = 0;
 
 /* ------------------------------------------------------------------------ */
 /* Local helpers                                                            */
@@ -157,11 +163,12 @@ void t_state_run(void *arg)
         fsm_state_t next = fsm_next(state, event);
         if (next != state) {
             g_phase_state = PHASE_STATE_PUBLISH;
-            rtt_log_hb("[t_state] transition",
-                       " from=", (uint32_t)state,
-                       " evt=",  (uint32_t)event,
-                       " to=",   (uint32_t)next,
-                       (const char *)0, 0);
+            rtt_log_hb_st("[t_state] transition",
+                          (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS),
+                          " from=", (int32_t)state,
+                          " evt=",  (int32_t)event,
+                          " to=",   (int32_t)next,
+                          (const char *)0, 0);
             state              = next;
             g_fsm_state        = (uint32_t)state;
             state_entered_tick = xTaskGetTickCount();
@@ -173,15 +180,12 @@ void t_state_run(void *arg)
         }
 
         g_phase_state = PHASE_STATE_HEARTBEAT;
-        /* Idle heartbeat: prove the task is alive between transitions.
-         * Once per second at 20 Hz. */
-        if ((tick % 20) == 0) {
-            rtt_log_hb("[t_state]",
-                       " tick=", tick,
-                       " fsm=",  (uint32_t)state,
-                       (const char *)0, 0,
-                       (const char *)0, 0);
-        }
+        /* Idle heartbeat: prove the task is alive between transitions. */
+        rtt_heartbeat(tick, "[t_state]",
+                      " tick=", (int32_t)tick,
+                      " fsm=",  (int32_t)state,
+                      (const char *)0, 0,
+                      (const char *)0, 0);
 
         g_cycle_ms_state = (uint32_t)((xTaskGetTickCount() - cycle_start)
                                       * portTICK_PERIOD_MS);

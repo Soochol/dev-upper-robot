@@ -32,6 +32,7 @@
 #include "i2c.h"
 #include "app/config.h"
 #include "app/ipc.h"
+#include "app/t_pid_inst.h"
 #include "app/fsm.h"
 #include "app/sensors_i2c.h"
 #include "app/actuators.h"
@@ -40,6 +41,12 @@
 #if DATA_COLLECT_MODE
 #include "app/sd_logger.h"
 #endif
+
+/* T_PID instrumentation surface — see t_pid_inst.h for the contract. */
+volatile uint32_t g_canary_pid                    = 0;
+volatile uint8_t  g_phase_pid                     = 0;
+volatile uint32_t g_cycle_ms_pid                  = 0;
+volatile uint32_t g_pid_phase_ms[PID_PHASE_COUNT] = {0};
 
 /* Consecutive read failures before escalating to FAULT. Set high enough
  * to survive the boot-time init window where T_ML holds mtx_i2c1 for
@@ -391,14 +398,14 @@ void t_pid_run(void *arg)
 #endif
         actuators_set_led_pattern(led);
 
-        /* ---- 8. Heartbeat log (1 Hz) ---- */
+        /* ---- 8. Heartbeat log ---- */
         pid_phase_enter(PHASE_PID_HEARTBEAT);
-        if ((tick % 20) == 0) {
-            rtt_log_hb_s("[t_pid]",
-                         " ir_cC=", (int32_t)(measurement * 100.0f),
-                         " sp_cC=", (int32_t)current_cmd.setpoint_c * 100,
-                         " heat=",  (int32_t)heater_duty,
-                         " fan=",   (int32_t)fan_pct);
+        rtt_heartbeat(tick, "[t_pid]",
+                      " ir_cC=", (int32_t)(measurement * 100.0f),
+                      " sp_cC=", (int32_t)current_cmd.setpoint_c * 100,
+                      " heat=",  (int32_t)heater_duty,
+                      " fan=",   (int32_t)fan_pct);
+        if ((tick % RTT_HEARTBEAT_TICKS) == 0) {
 
             /* Structured log to q_log for T_LOGGER (Phase 5). Non-blocking;
              * drop silently if the queue is full — the direct RTT heartbeat

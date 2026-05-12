@@ -13,6 +13,9 @@
  *    digits ("4294967295"), so the temporary digit buffer is 11 bytes.
  */
 
+#include "FreeRTOS.h"
+#include "task.h"
+#include "app/config.h"
 #include "app/rtt_log.h"
 #include "SEGGER_RTT.h"
 
@@ -106,39 +109,20 @@ void rtt_log_kv(const char *prefix, uint32_t value)
     SEGGER_RTT_Write(0, buf, (unsigned)(p - buf));
 }
 
-void rtt_log_hb(const char *tag,
-                const char *ka, uint32_t va,
-                const char *kb, uint32_t vb,
-                const char *kc, uint32_t vc,
-                const char *kd, uint32_t vd)
+void rtt_log_hb_st(const char *tag, uint32_t ts_ms,
+                   const char *ka, int32_t va,
+                   const char *kb, int32_t vb,
+                   const char *kc, int32_t vc,
+                   const char *kd, int32_t vd)
 {
     if (s_muted) return;
-    char  buf[96];
-    char *p   = buf;
-    char *end = buf + sizeof(buf) - 4;  /* leave room for "\r\n" + safety */
-
-    p = append_str(p, tag);
-    if (ka && p < end) { p = append_str(p, ka); p = append_u32(p, va); }
-    if (kb && p < end) { p = append_str(p, kb); p = append_u32(p, vb); }
-    if (kc && p < end) { p = append_str(p, kc); p = append_u32(p, vc); }
-    if (kd && p < end) { p = append_str(p, kd); p = append_u32(p, vd); }
-    *p++ = '\r';
-    *p++ = '\n';
-    SEGGER_RTT_Write(0, buf, (unsigned)(p - buf));
-}
-
-void rtt_log_hb_s(const char *tag,
-                  const char *ka, int32_t va,
-                  const char *kb, int32_t vb,
-                  const char *kc, int32_t vc,
-                  const char *kd, int32_t vd)
-{
-    if (s_muted) return;
-    char  buf[96];
+    char  buf[112];
     char *p   = buf;
     char *end = buf + sizeof(buf) - 4;
 
     p = append_str(p, tag);
+    p = append_str(p, " t=");
+    p = append_u32(p, ts_ms);
     if (ka && p < end) { p = append_str(p, ka); p = append_i32(p, va); }
     if (kb && p < end) { p = append_str(p, kb); p = append_i32(p, vb); }
     if (kc && p < end) { p = append_str(p, kc); p = append_i32(p, vc); }
@@ -146,6 +130,17 @@ void rtt_log_hb_s(const char *tag,
     *p++ = '\r';
     *p++ = '\n';
     SEGGER_RTT_Write(0, buf, (unsigned)(p - buf));
+}
+
+void rtt_heartbeat(uint32_t tick, const char *tag,
+                   const char *ka, int32_t va,
+                   const char *kb, int32_t vb,
+                   const char *kc, int32_t vc,
+                   const char *kd, int32_t vd)
+{
+    if ((tick % RTT_HEARTBEAT_TICKS) != 0) return;
+    uint32_t ts_ms = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS);
+    rtt_log_hb_st(tag, ts_ms, ka, va, kb, vb, kc, vc, kd, vd);
 }
 
 void rtt_log_kv_hex(const char *prefix, uint32_t value)

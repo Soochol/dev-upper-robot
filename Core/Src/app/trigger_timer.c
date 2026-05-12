@@ -47,11 +47,12 @@ static uint8_t timer_eval(const sensor_snapshot_t *snap, fsm_state_t cur)
         s_initialized        = true;
         s_last_state         = cur;
         s_state_entered_tick = now;
-        rtt_log_hb("[timer] *** TEST CYCLE BUILD ***",
-                   "FU_ms", (uint32_t)TEST_FU_DURATION_MS,
-                   "FD_ms", (uint32_t)TEST_FD_DURATION_MS,
-                   NULL, 0,
-                   NULL, 0);
+        rtt_log_hb_st("[timer] *** TEST CYCLE BUILD ***",
+                      (uint32_t)(now * portTICK_PERIOD_MS),
+                      " FU_ms=", (int32_t)TEST_FU_DURATION_MS,
+                      " FD_ms=", (int32_t)TEST_FD_DURATION_MS,
+                      NULL, 0,
+                      NULL, 0);
         return TRIG_EVENT_NONE;
     }
 

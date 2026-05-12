@@ -64,11 +64,12 @@ static uint8_t ml_eval(const sensor_snapshot_t *snap, fsm_state_t cur)
     static uint32_t ml_call_count = 0;
     ml_call_count++;
     if ((ml_call_count % 20) == 0) {
-        rtt_log_hb_s("[ml:p]",
-                     " u=", (int32_t)(output[1] * 100.0f),
-                     " gy=", (int32_t)(gyro_now * 10.0f),
-                     " fs=", (int32_t)snap->ml_feat->v[5],
-                     " ax=", (int32_t)(snap->ml_feat->v[3] * 1000.0f));
+        uint32_t ts_ms = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS);
+        rtt_log_hb_st("[ml:p]", ts_ms,
+                      " u=", (int32_t)(output[1] * 100.0f),
+                      " gy=", (int32_t)(gyro_now * 10.0f),
+                      " fs=", (int32_t)snap->ml_feat->v[5],
+                      " ax=", (int32_t)(snap->ml_feat->v[3] * 1000.0f));
     }
 
     /* Directional filtering with consecutive-tick confirmation.

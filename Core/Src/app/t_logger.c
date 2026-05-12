@@ -71,10 +71,13 @@ void t_logger_run(void *arg)
         prefix[5] = ']';
         prefix[6] = '\0';
 
-        rtt_log_hb_s(prefix,
-                     " t=",  (int32_t)msg.timestamp_ms,
-                     " c=",  (int32_t)msg.code,
-                     " v=",  msg.value,
-                     " x=",  msg.extra);
+        /* timestamp is provided by the log message itself (when the event
+         * happened), not the dispatch tick. rtt_log_hb_st auto-prepends a
+         * "t=" so the caller's redundant "t=" key was dropped. */
+        rtt_log_hb_st(prefix, msg.timestamp_ms,
+                      " c=",  (int32_t)msg.code,
+                      " v=",  msg.value,
+                      " x=",  msg.extra,
+                      NULL, 0);
     }
 }

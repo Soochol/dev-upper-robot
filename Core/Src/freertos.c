@@ -87,28 +87,14 @@ volatile uint32_t g_fsm_state = 0;  /* FSM_FORCE_DOWN */
 
 /* Canary counters for IWDG watchdog. Each task increments its counter at
  * the end of its main loop. T_WDG reads all three every 100 ms. */
-volatile uint32_t g_canary_state = 0;
-volatile uint32_t g_canary_pid   = 0;
-volatile uint32_t g_canary_ml    = 0;
+/* g_canary_* are defined in each task's .c file (see t_*_inst.h). */
 
 /* Failsafe latch — see ipc.h. Cleared at boot, set by T_WDG on stall. */
 volatile uint8_t  g_failsafe_active = 0;
 
-/* Stall-diagnostic phase markers — updated by each task at major boundaries
- * within its main loop. T_WDG dumps these on STALL so the post-mortem
- * shows which step a task was executing when it froze. */
-volatile uint8_t  g_phase_state   = 0;
-volatile uint8_t  g_phase_pid     = 0;
-volatile uint8_t  g_phase_ml      = 0;
-
-/* Last completed cycle duration in ms. Lets us spot near-stalls (e.g.,
- * cycles taking 80-200 ms regularly) before they become full stalls. */
-volatile uint32_t g_cycle_ms_state = 0;
-volatile uint32_t g_cycle_ms_pid   = 0;
-volatile uint32_t g_cycle_ms_ml    = 0;
-
-/* T_PID per-phase max wall-clock duration (ms). Indexed by g_phase_pid. */
-volatile uint32_t g_pid_phase_ms[PID_PHASE_COUNT] = {0};
+/* Per-task instrumentation (g_phase_*, g_cycle_ms_*, g_pid_phase_ms[])
+ * lives in each task's own .c file; see t_ml_inst.h, t_pid_inst.h,
+ * t_state_inst.h for the externs. */
 
 /* Snapshot of RCC_CSR taken in main.c before RMVF clear. T_STATE reads this
  * at init to decide whether to enter FSM_FAULT directly (IWDG-recovery boot)
@@ -319,22 +305,23 @@ void StartDefaultTask(void const * argument)
   for (;;)
   {
     tick++;
-    rtt_log_hb("[hb]",
-        " t=",    tick,
-        " free=", (uint32_t)xPortGetFreeHeapSize(),
-        " lo=",   (uint32_t)xPortGetMinimumEverFreeHeapSize(),
-        " fsm=",  g_fsm_state);
+    uint32_t ts_ms = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS);
+    rtt_log_hb_st("[hb]", ts_ms,
+        " free=", (int32_t)xPortGetFreeHeapSize(),
+        " lo=",   (int32_t)xPortGetMinimumEverFreeHeapSize(),
+        " fsm=",  (int32_t)g_fsm_state,
+        NULL, 0);
 
     /* Stack high-water mark: minimum free stack in WORDS for each task.
      * Logged every 10 seconds to avoid RTT noise. A value approaching 0
      * means the task is close to stack overflow. Use these numbers to
      * right-size STK_*_WORDS in config.h after bring-up stabilizes. */
     if ((tick % 10) == 0) {
-      rtt_log_hb("[hb:stk]",
-          " st=",  (uint32_t)uxTaskGetStackHighWaterMark(h_t_state),
-          " pid=", (uint32_t)uxTaskGetStackHighWaterMark(h_t_pid),
-          " ml=",  (uint32_t)uxTaskGetStackHighWaterMark(h_t_ml),
-          " log=", (uint32_t)uxTaskGetStackHighWaterMark(h_t_logger));
+      rtt_log_hb_st("[hb:stk]", ts_ms,
+          " st=",  (int32_t)uxTaskGetStackHighWaterMark(h_t_state),
+          " pid=", (int32_t)uxTaskGetStackHighWaterMark(h_t_pid),
+          " ml=",  (int32_t)uxTaskGetStackHighWaterMark(h_t_ml),
+          " log=", (int32_t)uxTaskGetStackHighWaterMark(h_t_logger));
       /* [W8] T_WDG uses minimal stack — monitor watermark closely. */
       rtt_log_kv("[hb:stk] wdg=",
           (uint32_t)uxTaskGetStackHighWaterMark(h_t_wdg));

@@ -25,20 +25,26 @@ void rtt_log_str(const char *msg);
 /* Single key=value pair, e.g. rtt_log_kv("[t_state] tick=", 42). */
 void rtt_log_kv(const char *prefix, uint32_t value);
 
-/* Heartbeat-style line: "<tag> a=A b=B c=C d=D\r\n".
- * Pass NULL for any key to skip that field. */
-void rtt_log_hb(const char *tag,
-                const char *ka, uint32_t va,
-                const char *kb, uint32_t vb,
-                const char *kc, uint32_t vc,
-                const char *kd, uint32_t vd);
+/* Event-style line with explicit timestamp prefix.
+ * Output: "<tag> t=<ts_ms> ka=va kb=vb kc=vc kd=vd\r\n"
+ * Pass NULL for any key to skip that field. Values are signed; unsigned
+ * counters that fit in int32_t (e.g. stack high-water marks, tick deltas
+ * within 24 days at 1ms tick) can be cast directly. */
+void rtt_log_hb_st(const char *tag, uint32_t ts_ms,
+                   const char *ka, int32_t va,
+                   const char *kb, int32_t vb,
+                   const char *kc, int32_t vc,
+                   const char *kd, int32_t vd);
 
-/* Signed variant of rtt_log_hb. Negative values print with '-' prefix. */
-void rtt_log_hb_s(const char *tag,
-                  const char *ka, int32_t va,
-                  const char *kb, int32_t vb,
-                  const char *kc, int32_t vc,
-                  const char *kd, int32_t vd);
+/* Periodic heartbeat: gated by `tick % RTT_HEARTBEAT_TICKS == 0` and
+ * stamped with current xTaskGetTickCount() ms. Wraps rtt_log_hb_st with
+ * the two concerns every task duplicates (cycle gate + timestamp). Call
+ * once per task loop iteration; the gate decides whether to actually emit. */
+void rtt_heartbeat(uint32_t tick, const char *tag,
+                   const char *ka, int32_t va,
+                   const char *kb, int32_t vb,
+                   const char *kc, int32_t vc,
+                   const char *kd, int32_t vd);
 
 /* Single key=value pair with the value in hexadecimal (uppercase, no
  * leading zeros, "0x" prefix added automatically). Useful for I2C

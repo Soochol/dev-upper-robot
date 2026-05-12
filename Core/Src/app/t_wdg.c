@@ -24,6 +24,9 @@
 #include "stm32f1xx_hal.h"
 #include "app/config.h"
 #include "app/ipc.h"
+#include "app/t_state_inst.h"   /* g_canary_state, g_phase_state, g_cycle_ms_state */
+#include "app/t_pid_inst.h"     /* g_canary_pid, g_phase_pid, g_cycle_ms_pid, g_pid_phase_ms[] */
+#include "app/t_ml_inst.h"      /* g_canary_ml, g_phase_ml, g_cycle_ms_ml */
 #include "app/actuators.h"
 #include "app/rtt_log.h"
 
@@ -102,58 +105,61 @@ void t_wdg_run(void *arg)
             HAL_GPIO_WritePin(OUT_LED_R1_GPIO_Port, OUT_LED_R1_Pin, GPIO_PIN_SET);
             HAL_GPIO_WritePin(OUT_LED_R2_GPIO_Port, OUT_LED_R2_Pin, GPIO_PIN_SET);
 
+            uint32_t ts_ms = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS);
+
             /* Log which task stalled — visible in RTT right before reset. */
-            rtt_log_hb("[t_wdg] STALL",
-                       " st=",  (uint32_t)miss_state,
-                       " pid=", (uint32_t)miss_pid,
-                       " ml=",  (uint32_t)miss_ml,
-                       (const char *)0, 0);
+            rtt_log_hb_st("[t_wdg] STALL", ts_ms,
+                          " st=",  (int32_t)miss_state,
+                          " pid=", (int32_t)miss_pid,
+                          " ml=",  (int32_t)miss_ml,
+                          (const char *)0, 0);
 
             /* Phase + last-cycle-ms diagnostics. Tells us *which line of
              * code* a frozen task was executing and whether cycle times
              * had been creeping up before the stall. */
-            rtt_log_hb("[t_wdg] PHASE",
-                       " st=",  (uint32_t)g_phase_state,
-                       " pid=", (uint32_t)g_phase_pid,
-                       " ml=",  (uint32_t)g_phase_ml,
-                       (const char *)0, 0);
-            rtt_log_hb("[t_wdg] CYCMS",
-                       " st=",  g_cycle_ms_state,
-                       " pid=", g_cycle_ms_pid,
-                       " ml=",  g_cycle_ms_ml,
-                       (const char *)0, 0);
+            rtt_log_hb_st("[t_wdg] PHASE", ts_ms,
+                          " st=",  (int32_t)g_phase_state,
+                          " pid=", (int32_t)g_phase_pid,
+                          " ml=",  (int32_t)g_phase_ml,
+                          (const char *)0, 0);
+            rtt_log_hb_st("[t_wdg] CYCMS", ts_ms,
+                          " st=",  (int32_t)g_cycle_ms_state,
+                          " pid=", (int32_t)g_cycle_ms_pid,
+                          " ml=",  (int32_t)g_cycle_ms_ml,
+                          (const char *)0, 0);
         }
 
         /* 1 Hz heartbeat for debugging. */
         if ((tick % 10) == 0) {
-            rtt_log_hb("[t_wdg]",
-                       " tick=", tick,
-                       " st=",   (uint32_t)miss_state,
-                       " pid=",  (uint32_t)miss_pid,
-                       " ml=",   (uint32_t)miss_ml);
+            uint32_t ts_ms = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS);
+            rtt_log_hb_st("[t_wdg]", ts_ms,
+                          " tick=", (int32_t)tick,
+                          " st=",   (int32_t)miss_state,
+                          " pid=",  (int32_t)miss_pid,
+                          " ml=",   (int32_t)miss_ml);
             /* Cycle-time tracker — if any task starts taking >50ms per
              * cycle regularly, a stall is brewing. Steady-state values
              * are normally ~1-5 ms. */
-            rtt_log_hb("[t_wdg] CYC",
-                       " st=",  g_cycle_ms_state,
-                       " pid=", g_cycle_ms_pid,
-                       " ml=",  g_cycle_ms_ml,
-                       (const char *)0, 0);
+            rtt_log_hb_st("[t_wdg] CYC", ts_ms,
+                          " st=",  (int32_t)g_cycle_ms_state,
+                          " pid=", (int32_t)g_cycle_ms_pid,
+                          " ml=",  (int32_t)g_cycle_ms_ml,
+                          (const char *)0, 0);
 
             /* T_PID per-phase wall-clock max for the last 1 s window.
              * Phase indices: 0=IDLE 1=MUTEX 2=IRR 3=DRAIN 4=FCHK
              *                5=RECOV 6=OTEMP 7=PID 8=ACT 9=HB
              * Read+reset the array so each 1 s window is independent. */
-            rtt_log_hb("[t_wdg] PIDMS_A",
-                       " p1=", g_pid_phase_ms[1],
-                       " p2=", g_pid_phase_ms[2],
-                       " p3=", g_pid_phase_ms[3],
-                       " p4=", g_pid_phase_ms[4]);
-            rtt_log_hb("[t_wdg] PIDMS_B",
-                       " p5=", g_pid_phase_ms[5],
-                       " p6=", g_pid_phase_ms[6],
-                       " p7=", g_pid_phase_ms[7],
-                       " p8=", g_pid_phase_ms[8]);
+            rtt_log_hb_st("[t_wdg] PIDMS_A", ts_ms,
+                          " p1=", (int32_t)g_pid_phase_ms[1],
+                          " p2=", (int32_t)g_pid_phase_ms[2],
+                          " p3=", (int32_t)g_pid_phase_ms[3],
+                          " p4=", (int32_t)g_pid_phase_ms[4]);
+            rtt_log_hb_st("[t_wdg] PIDMS_B", ts_ms,
+                          " p5=", (int32_t)g_pid_phase_ms[5],
+                          " p6=", (int32_t)g_pid_phase_ms[6],
+                          " p7=", (int32_t)g_pid_phase_ms[7],
+                          " p8=", (int32_t)g_pid_phase_ms[8]);
             for (uint8_t i = 0; i < PID_PHASE_COUNT; i++) {
                 g_pid_phase_ms[i] = 0;
             }
