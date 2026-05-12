@@ -78,9 +78,6 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Feature extraction: IMU tilt with adaptive LPF.
     Core/Src/app/features.c
 
-    # Reaction-time tracker: sensor onset → FU dispatch latency.
-    Core/Src/app/react.c
-
     # SK6812MINI RGB LED driver (TIM2_CH2 + DMA).
     Core/Src/app/sk6812.c
 )

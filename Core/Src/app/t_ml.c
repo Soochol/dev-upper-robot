@@ -33,7 +33,6 @@
 #include "app/sensors_i2c.h"
 #include "app/features.h"
 #include "app/trigger.h"
-#include "app/react.h"
 #include "app/rtt_log.h"
 
 /* T_ML instrumentation surface — see t_ml_inst.h for the contract. */
@@ -130,11 +129,6 @@ void t_ml_run(void *arg)
 
     TickType_t next_wake = xTaskGetTickCount();
     uint32_t   tick = 0;
-
-    /* Reaction-time tracker (sensor onset → FU dispatch latency).
-     * Purely observational; readable via GDB as s_react.last_react_ms. */
-    react_tracker_t s_react;
-    react_tracker_init(&s_react);
 
     for (;;) {
         g_phase_ml = PHASE_ML_IDLE;
@@ -305,24 +299,26 @@ void t_ml_run(void *arg)
         fsm_state_t cur_state = (fsm_state_t)g_fsm_state;
         uint8_t event = trigger_eval(&snap, cur_state);
 
-        /* Reaction-time measurement. react_update observes onset and FU
-         * dispatch; returns react_ms only on the cycle FU fires while
-         * armed. side-effect free — caller emits the log line. */
-        uint32_t react_ms = react_update(&s_react, cur_state, &snap,
-                                          next_wake,
-                                          event == TRIG_EVENT_FORCE_UP);
-        if (react_ms != 0) {
-            uint32_t ts_ms = (uint32_t)(next_wake * portTICK_PERIOD_MS);
-            rtt_log_hb_st("[react]", ts_ms,
-                          " ms=",  (int32_t)react_ms,
-                          " src=", (int32_t)s_react.source,
-                          NULL, 0, NULL, 0);
-        }
-
-        /* ---- 4. Publish trigger event if not NONE ---- */
+        /* ---- 4. Publish trigger event if not NONE ----
+         * dispatch_tick stamps the moment of decision so T_STATE can
+         * measure cross-task dispatch latency (see [fu_recv] in
+         * t_state.c). T_ML logs [fu_send] independently for FU events
+         * so a reviewer can cross-check both endpoints. */
         if (event != TRIG_EVENT_NONE) {
-            trig_msg_t msg = { .event = event, .pad = {0, 0, 0} };
+            TickType_t dispatch_tick = xTaskGetTickCount();
+            trig_msg_t msg = {
+                .event         = event,
+                .pad           = {0, 0, 0},
+                .dispatch_tick = (uint32_t)dispatch_tick,
+            };
             (void)xQueueSendToBack(q_trigger_to_state, &msg, 0);
+
+            if (event == TRIG_EVENT_FORCE_UP) {
+                rtt_log_hb_st("[trigger] sensor captured",
+                              (uint32_t)(dispatch_tick * portTICK_PERIOD_MS),
+                              " evt=", (int32_t)event,
+                              NULL, 0, NULL, 0, NULL, 0);
+            }
         }
 
         /* ---- 5. Heartbeat log ---- */

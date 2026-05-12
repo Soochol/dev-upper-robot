@@ -265,16 +265,14 @@
  * feels sluggish responding to intentional state changes. */
 #define TRIGGER_DEBOUNCE_MS         500
 
-/* Reaction time measurement: sensor onset → FU trigger publish (T_ML 내부).
- * onset 은 FSM_FORCE_DOWN 상태에서 gyro magnitude 가 임계값을 초과하거나
- * FSR raw 가 FSR_THRESHOLD_DOWN_RAW 를 초과하는 순간 arm 된다. arm 된 후
- * REACT_ONSET_TIMEOUT_MS 안에 FU 가 안 뜨면 자동 취소 (false-onset 흡수). */
-#define REACT_GYRO_ONSET_DPS        30.0f   /* gyro |w| threshold */
-#define REACT_ONSET_TIMEOUT_MS      2000U   /* arm 만료 시각 */
-
 /* RTT heartbeat period (task tick 단위; 50ms task 기준).
- *   1 = 매 cycle (20Hz), 2 = 100ms (10Hz), 4 = 5Hz, 10 = 2Hz, 20 = 1Hz */
-#define RTT_HEARTBEAT_TICKS         1U      /* 20 Hz */
+ *   1 = 매 cycle (20Hz), 2 = 100ms (10Hz), 4 = 5Hz, 10 = 2Hz, 20 = 1Hz
+ *
+ * 10Hz 채택 이유: 20Hz × 3 task ≈ 6KB/s 가 SEGGER 1KB UP 버퍼와 호스트
+ * 폴링 지연이 겹치면 SKIP 모드에서 line drop 발생. 10Hz (~3KB/s) 로
+ * 절반 줄여 안정성 확보. [trigger] sensor captured / forceup implemented
+ * 같은 이벤트성 로그는 이 게이트 영향 없음 (rtt_log_hb_st 직접 호출). */
+#define RTT_HEARTBEAT_TICKS         2U      /* 10 Hz @ 50ms task */
 
 /* ========================================================================
  * Trigger provider selection (compile-time, v1)

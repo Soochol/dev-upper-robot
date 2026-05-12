@@ -83,10 +83,13 @@ typedef struct {
     uint8_t  pad[3];
 } ctrl_cmd_t;
 
-/* T_ML → T_STATE. Trigger event from the active provider (rule or ml). */
+/* T_ML → T_STATE. Trigger event from the active provider (rule or ml).
+ * dispatch_tick = xTaskGetTickCount() at send-time, used by T_STATE to
+ * measure FU dispatch latency (see [fu_send] / [fu_recv] RTT lines). */
 typedef struct {
     uint8_t  event;           /* fsm_event_t value */
     uint8_t  pad[3];
+    uint32_t dispatch_tick;
 } trig_msg_t;
 
 /* T_PID / T_ML → T_STATE. Raised when over-temperature, sensor error, or

@@ -32,6 +32,12 @@ volatile uint32_t g_canary_state   = 0;
 volatile uint8_t  g_phase_state    = 0;
 volatile uint32_t g_cycle_ms_state = 0;
 
+/* FU dispatch latency — GDB-readable backup of [trigger] RTT lines. */
+volatile uint32_t g_fu_count        = 0;
+volatile uint32_t g_fu_lat_ms_last  = 0;
+volatile uint32_t g_fu_send_ms_last = 0;
+volatile uint32_t g_fu_recv_ms_last = 0;
+
 /* ------------------------------------------------------------------------ */
 /* Local helpers                                                            */
 /* ------------------------------------------------------------------------ */
@@ -149,12 +155,16 @@ void t_state_run(void *arg)
         }
 
         g_phase_state = PHASE_STATE_DRAIN_TRIG;
-        /* Priority 3: trigger event from T_ML (via Phase 2 emulator for
-         * now). Drain only one per tick to keep the FSM serializable. */
+        /* Priority 3: trigger event from T_ML. Drain only one per tick
+         * to keep the FSM serializable. dispatch_tick captures T_ML's
+         * send-time; 0 means "no measurement available" (fault/safety
+         * paths don't fill it). */
+        uint32_t dispatch_tick = 0;
         if (event == FSM_EVT_NONE) {
             trig_msg_t tmsg;
             if (xQueueReceive(q_trigger_to_state, &tmsg, 0) == pdTRUE) {
-                event = (fsm_event_t)tmsg.event;
+                event         = (fsm_event_t)tmsg.event;
+                dispatch_tick = tmsg.dispatch_tick;
             }
         }
 
@@ -163,6 +173,34 @@ void t_state_run(void *arg)
         fsm_state_t next = fsm_next(state, event);
         if (next != state) {
             g_phase_state = PHASE_STATE_PUBLISH;
+
+            /* FU dispatch latency — only when queue-sourced and the
+             * transition is into FORCE_UP. send= echoes [fu_send].t so
+             * the reviewer can cross-check both endpoints independently
+             * (queue message integrity + arithmetic). */
+            if (next == FSM_FORCE_UP && dispatch_tick != 0) {
+                TickType_t now    = xTaskGetTickCount();
+                uint32_t send_ms  = (uint32_t)(dispatch_tick * portTICK_PERIOD_MS);
+                uint32_t recv_ms  = (uint32_t)(now * portTICK_PERIOD_MS);
+                uint32_t fu_lat_ms = recv_ms - send_ms;
+
+                /* GDB watch surface — written FIRST so it's coherent even if
+                 * the RTT call below drops on a full buffer. Order matters:
+                 * lat last so g_fu_count incrementing implies all four fields
+                 * are valid (single-writer, single-reader, no torn reads on
+                 * Cortex-M3 32-bit aligned stores). */
+                g_fu_send_ms_last = send_ms;
+                g_fu_recv_ms_last = recv_ms;
+                g_fu_lat_ms_last  = fu_lat_ms;
+                g_fu_count++;
+
+                rtt_log_hb_st("[trigger] forceup implemented",
+                              recv_ms,
+                              " send=", (int32_t)send_ms,
+                              " ms=",   (int32_t)fu_lat_ms,
+                              NULL, 0, NULL, 0);
+            }
+
             rtt_log_hb_st("[t_state] transition",
                           (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS),
                           " from=", (int32_t)state,

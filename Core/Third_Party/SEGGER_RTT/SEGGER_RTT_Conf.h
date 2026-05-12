@@ -92,7 +92,10 @@ Revision: $Rev: 24316 $
 #endif
 
 #ifndef   BUFFER_SIZE_UP
-  #define BUFFER_SIZE_UP                            (1024)  // Size of the buffer for terminal output of target, up to host (Default: 1k)
+  // 1024 -> 4096: absorbs ~1 sec of 10Hz heartbeat traffic so brief
+  // host-polling stalls (VSCode GC, USB hub renegotiation, RTT Viewer
+  // freeze under load) don't trigger SKIP-mode line drops.
+  #define BUFFER_SIZE_UP                            (4096)
 #endif
 
 #ifndef   BUFFER_SIZE_DOWN
